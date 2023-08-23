@@ -110,11 +110,11 @@
         </CommonProperty>
         <DllOption>
           <SimDllName>SARMCM3.DLL</SimDllName>
-          <SimDllArguments>  -MPU</SimDllArguments>
+          <SimDllArguments>-MPU</SimDllArguments>
           <SimDlgDll>DCM.DLL</SimDlgDll>
           <SimDlgDllArguments>-pCM3</SimDlgDllArguments>
           <TargetDllName>SARMCM3.DLL</TargetDllName>
-          <TargetDllArguments> -MPU</TargetDllArguments>
+          <TargetDllArguments>-MPU</TargetDllArguments>
           <TargetDlgDll>TCM.DLL</TargetDlgDll>
           <TargetDlgDllArguments>-pCM3</TargetDlgDllArguments>
         </DllOption>
@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>sdk/bundles/typical/inc;sdk/bundles/typical/inc/os;sdk/src/BSP;sdk/src/FWlib;sdk/src/StartUP/ing916;sdk/src/Tools;sdk/src;.\src\IAP</IncludePath>
+              <IncludePath>.\src\IAP;sdk/bundles/typical/inc;sdk/bundles/typical/inc/os;sdk/src/BSP;sdk/src/FWlib;sdk/src/StartUP/ing916;sdk/src/Tools;sdk/src</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
