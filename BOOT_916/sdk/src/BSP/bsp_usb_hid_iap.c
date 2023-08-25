@@ -389,6 +389,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         bsp_usp_hid_iap_rx_data_trigger(1);
 
                         IapReport.ready = U_TRUE; // 枚举结束
+                        platform_printf("===> USB OK <===\n");
                     }
                     
                     /* If send ok, Clear busy status, and notify user. */

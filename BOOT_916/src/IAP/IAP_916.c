@@ -7,6 +7,8 @@
 //#include "bsp_usb_hid.h"
 #include "bsp_usb_hid_iap.h"
 #include "btstack_util.h"
+#include "IAP_Transport.h"
+#include "IAP_Application.h"
 
 
 
@@ -94,17 +96,6 @@ void bsp_usb_reinit_timeout(void)
     platform_printf("USB cable reconnect.");
 }
 
-void bsp_usb_hid_iap_recv_callback(uint8_t *data, uint16_t len){
-    platform_printf("RECV[%d]: ", len);
-    printf_hexdump(data, len);
-
-    platform_printf("SEND(%d) ...\n", bsp_usb_hid_iap_send((uint8_t *)"\x88\x99\x33\x44", 4) );
-}
-
-void bsp_usb_hid_iap_send_complete_callback(void){
-    platform_printf("Send complete.\n");
-}
-
 /**
  * @brief IAP_Init
  * 
@@ -115,9 +106,8 @@ void IAP_Init(void){
     // bsp_usb_disable();
     // platform_set_timer(bsp_usb_reinit_timeout, 5);
 
-    bsp_usb_hid_iap_recv_callback_register(bsp_usb_hid_iap_recv_callback);
-    bsp_usb_hid_iap_send_complete_callback_register(bsp_usb_hid_iap_send_complete_callback);
-
+    IAP_Application_Init();
+    IAP_Transport_Init();
     bsp_usb_init();
     
     

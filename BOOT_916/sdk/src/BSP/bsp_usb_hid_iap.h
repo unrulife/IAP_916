@@ -215,6 +215,7 @@ typedef enum
     USB_HID_STA_INACTIVE_EP,        /* > Inactive Endpoint. */
     USB_HID_STA_INTERNAL_ERR,       /* > EP NUM TOO BIG OR INPUT BUFFER NOT ALIGN(4). */
     USB_HID_STA_UNKNOW_ERR,         /* > Unknow error. */
+    USB_HID_STA_SIZE_TOO_LARGE,     /* > size too large. */
 }USB_HID_IAP_STA_t;
 
 
