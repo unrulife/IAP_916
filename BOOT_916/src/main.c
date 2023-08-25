@@ -8,8 +8,6 @@
 #include "trace.h"
 #include "../data/setup_soc.cgen"
 #include "iap_916.h"
-//#include "bsp_usb.h"
-#include "bsp_usb_hid.h"
 
 static uint32_t cb_hard_fault(hard_fault_info_t *info, void *_)
 {
@@ -53,7 +51,6 @@ int fputc(int ch, FILE *f)
 void setup_peripherals(void)
 {
     cube_setup_peripherals();
-    bsp_usb_init();
 }
 
 uint32_t on_lle_init(void *dummy, void *user_data)

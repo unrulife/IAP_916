@@ -6,6 +6,8 @@
     },
     "files.associations": {
         "platform_api.h": "c",
-        "*.cgen": "c"
-    }
+        "*.cgen": "c",
+        "*.inc": "c"
+    },
+    "cortex-debug.variableUseNaturalFormat": false
 }
