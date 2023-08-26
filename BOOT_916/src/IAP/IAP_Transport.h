@@ -2,8 +2,9 @@
 #define _IAP_TRANSPORT_H_
 
 #include <stdint.h>
+#include "bsp_usb_hid_iap.h"
 
-#define IAP_TRANSPORT_MAX_RECV_DATA_SIZE        (8100)
+
 #define IAP_TRANSPORT_MAX_SEND_DATA_SIZE        (MAX_REPORT_SIZE)
 
 // PARAM.
@@ -65,6 +66,17 @@ typedef struct __attribute__((packed)){
 } IAP_Transport_ACK_t;
 
 typedef struct __attribute__((packed)){
+    IAP_TransportState_t state;
+    uint8_t total_pack_num;
+    uint8_t next_pack_num;
+} IAP_Transport_Ctl_t;
+
+typedef struct __attribute__((packed)){
+    uint16_t size;
+    uint8_t  *buffer;
+} IAP_Transport_Data_t;
+
+typedef struct __attribute__((packed)){
     uint8_t header;
     uint8_t ctl_1;
     uint16_t pack_ctl;
@@ -73,21 +85,17 @@ typedef struct __attribute__((packed)){
 } IAP_Transport_Send_t;
 
 typedef struct __attribute__((packed)){
-    IAP_TransportState_t state;
-    uint8_t total_pack_num;
-    uint8_t next_pack_num;
-} IAP_Transport_Ctl_t;
-
-typedef struct __attribute__((packed)){
-    uint8_t data[IAP_TRANSPORT_MAX_RECV_DATA_SIZE];
+    uint8_t  buf[IAP_TRANSPORT_MAX_SEND_DATA_SIZE+1];
     uint16_t size;
-} IAP_Transport_Data_t;
+    uint16_t remainNum;
+    IAP_Transport_Data_t data;
+} IAP_Transport_sendCtl_t;
 
 typedef void (* iap_transport_recv_cmd_cb_t)(uint8_t *data, uint16_t len);
 
 
 void IAP_Transport_recv_cmd_callback_register(iap_transport_recv_cmd_cb_t cb);
-uint8_t IAP_Transport_send_single_pack(uint8_t *data, uint16_t len);
+uint8_t IAP_Transport_send_multi_pack(uint8_t *sendData, uint16_t sendLen);
 void IAP_Transport_Init(void);
 
 #endif
