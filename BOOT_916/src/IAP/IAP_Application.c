@@ -95,7 +95,7 @@ static void IAP_APP_SendACK(uint8_t error){
 }
 
 // calc crc.
-static uint8_t IsAppCrcValid(uint8_t *data, uint8_t len){
+static uint8_t IsAppCrcValid(uint8_t *data, uint16_t len){
     uint16_t *CRC = (uint16_t *)&data[len-2];
     if(*CRC != IAP_Get_CRC(data, len-2)){
         IAP_APP_ERROR("[CMD] error: CRC: Calc[0x%04X], Recv[0x%04X]\n", IAP_Get_CRC(data, len-2), *CRC);
