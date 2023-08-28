@@ -65,14 +65,31 @@ static IAP_APP_ctl_t cmdCtl = {
 };
 
 // =================================================================================================
-static int IAP_Flash_Erase(void){
-    return erase_flash_sector(APP_START_ADDR); // for test.
+#define FLASH_MIN_ERASE_UNIT    (EFLASH_SECTOR_SIZE)
+
+static IAP_APP_ErrCode_t IAP_Flash_Erase(uint32_t size){
+
+    if(size > APP_CODE_SIZE){
+        IAP_APP_ERROR("[FLASH] error: erase size too large [%d]>[%d]\n", size, APP_CODE_SIZE);
+        return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+    }
+
+    uint16_t SEC_NUM = (size % FLASH_MIN_ERASE_UNIT)? (size / FLASH_MIN_ERASE_UNIT + 1) : (size / FLASH_MIN_ERASE_UNIT);
+    for(uint16_t index = 0; index < SEC_NUM; index++){
+        if(erase_flash_sector(APP_START_ADDR + (index * FLASH_MIN_ERASE_UNIT))){
+            IAP_APP_ERROR("[FLASH] error: erase fail. addr=[0x%08X]\n", APP_START_ADDR + (index * FLASH_MIN_ERASE_UNIT));
+            return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+        }
+    }
+    return IAP_APP_ERR_NONE;
 }
 
 static IAP_APP_ErrCode_t IAP_Flash_Write(uint32_t offsetAddr, uint8_t *buffer, uint16_t size){
-    // if(program_flash(APP_START_ADDR + offsetAddr, buffer, size)){
-    //     return IAP_APP_ERR_FLASH_OPERATE_FAIL;
-    // }
+    int err = write_flash(APP_START_ADDR + offsetAddr, buffer, size);
+    if(err){
+        IAP_APP_ERROR("[FLASH] error: write [%d]\n", err);
+        return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+    }
     return IAP_APP_ERR_NONE;
 }
 
@@ -295,7 +312,7 @@ static uint8_t IsBlockInfoValid(IAP_BlockInfoTypedef * block, uint8_t upgradeTyp
     uint32_t upgradeCodeSize = GetUpgradeAreaCodeSize(upgradeType);
 
     // check upgrade code size.
-    if( (block->size * block->num) > upgradeCodeSize){
+    if( (uint32_t)(block->size * block->num) > upgradeCodeSize ){
         IAP_APP_ERROR("[HEADER] error: upgrade data too large! \n");
         return IAP_INVALID;
     }
@@ -440,7 +457,7 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
     IAP_CtlInit();
 
     // Erase flash.
-    IAP_Flash_Erase();
+    IAP_Flash_Erase((uint32_t)(header->block.size * header->block.num));
 
     // record upgrade info.
     IAP_Fill_header_info(header);
@@ -451,6 +468,9 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
     return errCode;
 }
 
+static void iap_switch_big_endian_u16(uint16_t *data){
+    *data = (*data<<8)|(*data>>8);
+}
 static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t length){
 
     IAP_APP_ErrCode_t errCode = IAP_APP_ERR_NONE;
@@ -487,6 +507,7 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
 
     // last block.
     if (fWrite->blockNum == IAP_APP_LAST_BLOCK){
+    // if (fWrite->blockNum == (cmdCtl.tBlockNum-1)){
 
         // check offset address
         if ( fWrite->offsetAddr != cmdCtl.nextOffsetAddr ){
@@ -508,8 +529,9 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
         uint32_t allBinSize = (cmdCtl.nextOffsetAddr + currBlockSize);
         uint8_t * pBinData   = (uint8_t *)IAP_Flash_StartAddr_Get();
         uint16_t allBinCRC = IAP_Get_CRC(pBinData, allBinSize);
+        // iap_switch_big_endian_u16(&allBinCRC);
         if(allBinCRC != cmdCtl.chk.val.CRC){
-            IAP_APP_ERROR("[WR] error: =====>CRC CHECK: calc[0x%08x], recv[0x%08x]\n", allBinCRC, cmdCtl.chk.val.CRC);
+            IAP_APP_ERROR("[WR] error: =====>CRC CHECK: calc[0x%04x], recv[0x%04x]\n", allBinCRC, cmdCtl.chk.val.CRC);
             return IAP_APP_ERR_CRC;
         } else {
             IAP_APP_DEBUG("[WR] ----------->CRC OK.\n");
