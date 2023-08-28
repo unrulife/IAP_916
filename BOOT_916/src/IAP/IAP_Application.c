@@ -29,6 +29,7 @@ static IAP_APP_ctl_t cmdCtl = {
     .rspCmd = 0x00,
     .buffer = (uint8_t *)&appBuffer[0],
     .size   = 0,
+    .upgrade_flag = 0,
 };
 
 
@@ -104,6 +105,8 @@ static uint8_t IsAppCrcValid(uint8_t *data, uint16_t len){
     return 1;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------
 static void PrintStr(char *comment, char *str, uint8_t len){
     uint8_t i;
     IAP_APP_DEBUG("%s", comment);
@@ -127,7 +130,7 @@ static void PrintHeaderInfo(IAP_HeaderTypedef * iapHeader){
     PrintStr((char *)"HW: ", (char *)&iapHeader->HW, 6);
     PrintStr((char *)"SW: ", (char *)&iapHeader->SW, 6);
 
-    if (iapHeader->check.type == 0){
+    if (iapHeader->check.type == IAP_CHECK_TYPE_CRC){
         IAP_APP_DEBUG("check type = CRC\n");
         IAP_APP_DEBUG("check len = %d\n", iapHeader->check.len);
         IAP_APP_DEBUG("check data: 0x%04X\n", iapHeader->check.val.CRC); 
@@ -140,27 +143,224 @@ static void PrintHeaderInfo(IAP_HeaderTypedef * iapHeader){
     IAP_APP_DEBUG("block size = 0x%04X\n", iapHeader->block.size);
     IAP_APP_DEBUG("block num  = 0x%04X\n", iapHeader->block.num);
 
-    if(iapHeader->upgradeType == 0x00)
+    if(iapHeader->upgradeType == IAP_UPGRADE_TYPE_APP_ONLY)
         IAP_APP_DEBUG("upgradeType : APP Only.\n");
     else 
         IAP_APP_DEBUG("upgradeType : %d\n", iapHeader->upgradeType);
 
-    IAP_APP_DEBUG("key enable = %d\n", iapHeader->key.enable);
-    if (iapHeader->key.enable){
-        IAP_APP_DEBUG("key type = %d\n", iapHeader->key.type);
-        IAP_APP_DEBUG("key len = %d\n", iapHeader->key.len);
-        if(iapHeader->key.type == 1){ //aes
-            IAP_APP_DEBUG("key type = AES128\n");
-            IAP_APP_DEBUG("key value: ");
-            printf_hexdump(iapHeader->key.val, iapHeader->key.len/2);
-            IAP_APP_DEBUG("key iv: ");
-            printf_hexdump(iapHeader->key.iv, iapHeader->key.len/2);
+    IAP_APP_DEBUG("encrypt enable = %d\n", iapHeader->encrypt.enable);
+    if (iapHeader->encrypt.enable){
+        IAP_APP_DEBUG("encrypt type = %d\n", iapHeader->encrypt.type);
+        IAP_APP_DEBUG("encrypt len = %d\n", iapHeader->encrypt.len);
+        if(iapHeader->encrypt.type == IAP_ENCRYPT_TYPE_AES128){ //aes
+            IAP_APP_DEBUG("encrypt type = AES128\n");
+            IAP_APP_DEBUG("encrypt key: ");
+            printf_hexdump(iapHeader->encrypt.key, iapHeader->encrypt.len/2);
+            IAP_APP_DEBUG("encrypt iv: ");
+            printf_hexdump(iapHeader->encrypt.iv, iapHeader->encrypt.len/2);
         } else {
-            IAP_APP_DEBUG("key type = XOR\n");
-            IAP_APP_DEBUG("key value: ");
-            printf_hexdump(iapHeader->key.val, iapHeader->key.len);
+            IAP_APP_DEBUG("encrypt type = XOR\n");
+            IAP_APP_DEBUG("encrypt key: ");
+            printf_hexdump(iapHeader->encrypt.key, iapHeader->encrypt.len);
         }
     }
+}
+
+
+
+// INFO BEGIN.
+static const char bUpgradeFlag[] = "INGCHIPS";
+static const char bChipID[]      = "ING91683C_TB";
+static const char bItemStr[]     = "ING_USB_IAP_TEST";
+static const char bHardware[]    = "V1.0.0";
+static const char bSoftware[]    = "V2.1.3";
+#define GET_STR_LEN(x)           (strlen(x))
+// INFO END.
+
+static uint8_t IAP_APP_VersionFormatValidCheck(char *str){
+    if(str[0] != 'V')    return IAP_INVALID;
+    if(str[1] < '0' || str[1] > '9')    return IAP_INVALID;
+    if(str[2] != '.')    return IAP_INVALID;
+    if(str[3] < '0' || str[3] > '9')    return IAP_INVALID;
+    if(str[4] != '.')    return IAP_INVALID;
+    if(str[5] < '0' || str[5] > '9')    return IAP_INVALID;
+    return IAP_VALID;
+}
+
+static uint8_t IsCheckInfoValid(IAP_CheckInfoTypedef * check){
+
+#if USER_CFG_IAP_CHECK_TYPE_SUPPORT_CRC_EN
+    if(check->type == IAP_CHECK_TYPE_CRC && check->len == 2){
+        return IAP_VALID;
+    }
+#endif
+
+#if USER_CFG_IAP_CHECK_TYPE_SUPPORT_SUM_EN
+    if(check->type == IAP_CHECK_TYPE_SUM && check->len == 2){
+        return IAP_VALID;
+    }
+#endif
+
+    return IAP_INVALID; //unsupported check type.
+}
+
+
+
+static uint8_t IsUpgradeTypeValid(uint8_t upgradeType){
+
+#if USER_CFG_IAP_UPGRADE_TYPE_SUPPORT_APP_ONLY_EN
+    if( upgradeType == IAP_UPGRADE_TYPE_APP_ONLY ){
+        return IAP_VALID;
+    }
+#endif
+
+#if USER_CFG_IAP_UPGRADE_TYPE_SUPPORT_PLATFORM_APP_EN
+    if( upgradeType == IAP_UPGRADE_TYPE_PLATFORM_APP ){
+        return IAP_VALID;
+    }
+#endif
+
+#if USER_CFG_IAP_UPGRADE_TYPE_SUPPORT_PLATFORM_BOOT_EN
+    if( upgradeType == IAP_UPGRADE_TYPE_PLATFORM_BOOT ){
+        return IAP_VALID;
+    }
+#endif
+
+#if USER_CFG_IAP_UPGRADE_TYPE_SUPPORT_PLATFORM_BOOT_APP_EN
+    if( upgradeType == IAP_UPGRADE_TYPE_PLAT_BOOT_APP ){
+        return IAP_VALID;
+    }
+#endif
+
+    return IAP_INVALID;
+}
+
+static uint32_t GetUpgradeAreaCodeSize(uint8_t upgradeType){
+    
+    if( upgradeType == IAP_UPGRADE_TYPE_APP_ONLY ){
+        return APP_CODE_SIZE;
+    }
+    else if( upgradeType == IAP_UPGRADE_TYPE_PLATFORM_APP ){
+        return (PLATFORM_CODE_SIZE + APP_CODE_SIZE);
+    }
+    else if( upgradeType == IAP_UPGRADE_TYPE_PLATFORM_BOOT ){
+        return (PLATFORM_CODE_SIZE + BOOT_CODE_SIZE);
+    }
+    else if( upgradeType == IAP_UPGRADE_TYPE_PLAT_BOOT_APP ){
+        return (PLATFORM_CODE_SIZE + BOOT_CODE_SIZE + APP_CODE_SIZE);
+    }
+    return 0xFFFFFFFF; // never come here.
+}
+
+static uint8_t IsBlockInfoValid(IAP_BlockInfoTypedef * block, uint8_t upgradeType){
+
+    // block size check.
+    if(block->size < IAP_MIN_BLOCK_SIZE || block->size > IAP_MAX_BLOCK_SIZE){
+        IAP_APP_ERROR("[HEADER] error: invalid block_size! \n");
+        return IAP_INVALID;
+    }
+
+    // Get code size.
+    uint32_t upgradeCodeSize = GetUpgradeAreaCodeSize(upgradeType);
+
+    // check upgrade code size.
+    if( (block->size * block->num) > upgradeCodeSize){
+        IAP_APP_ERROR("[HEADER] error: upgrade data too large! \n");
+        return IAP_INVALID;
+    }
+
+    return IAP_VALID;
+}
+
+static uint8_t IsEncryptInfoValid(IAP_EncryptInfoTypedef * encrypt){
+
+    // disable encrypt, return success.
+    if (encrypt->enable == 0x00){
+        return 1;
+    }
+
+#if USER_CFG_IAP_ENCRYPT_TYPE_SUPPORT_XOR_EN
+    if( encrypt->type == IAP_ENCRYPT_TYPE_XOR ){
+        if (encrypt->len != IAP_ENCRYPT_LEN_XOR){
+            return IAP_INVALID;
+        }
+    }
+#endif
+
+#if USER_CFG_IAP_ENCRYPT_TYPE_SUPPORT_AES_EN
+    else if( encrypt->type == IAP_ENCRYPT_TYPE_AES128 ){
+        if (encrypt->len != IAP_ENCRYPT_LEN_AES128){
+            return IAP_INVALID;
+        }
+    }
+#endif
+
+    else{
+        return IAP_INVALID; //unsupported encrypt type.
+    }
+
+    return IAP_VALID; // success.
+}
+
+
+
+static IAP_APP_ErrCode_t IAP_Header_Check(IAP_HeaderTypedef * header){
+    
+    // Check upgradeFlag
+    if (memcmp(header->upgradeFlag, bUpgradeFlag, GET_STR_LEN(bUpgradeFlag)) != 0){
+        IAP_APP_ERROR("[HEADER] error: upgradeFlag\n");
+        return IAP_APP_ERR_HEADER_UPGRADE_FLAG;
+    }
+
+    // Check CHIP_ID
+    if ( (GET_STR_LEN(bChipID) != header->chip_id.len) || (memcmp(header->chip_id.str, bChipID, GET_STR_LEN(bChipID)) != 0) ){
+        IAP_APP_ERROR("[HEADER] error: chipID\n");
+        return IAP_APP_ERR_HEADER_CHIP_ID;
+    }
+
+    // Check item information
+    if ( (GET_STR_LEN(bItemStr) != header->item_info.len) || (memcmp(header->item_info.str, bItemStr, GET_STR_LEN(bItemStr)) != 0) ){
+        IAP_APP_ERROR("[HEADER] error: itemInfo\n");
+        return IAP_APP_ERR_HEADER_ITEM_IINFO;
+    }
+
+    // Check hardware version
+    if (!IAP_APP_VersionFormatValidCheck((char *)header->HW)){
+        IAP_APP_ERROR("[HEADER] error: HW version.\n");
+        return IAP_APP_ERR_HEADER_HARDWARE_VER;
+    }
+
+    // Check software version
+    if (!IAP_APP_VersionFormatValidCheck((char *)header->SW)){
+        IAP_APP_ERROR("[HEADER] error: SW version.\n");
+        return IAP_APP_ERR_HEADER_SOFTWARE_VER;
+    }
+
+    // Check CHECK_TYPE
+    if (!IsCheckInfoValid(&header->check)){
+        IAP_APP_ERROR("[HEADER] error: CHECK INFO.\n");
+        return IAP_APP_ERR_HEADER_CHECK_INFO;
+    }
+    
+    // Check UpgradeType
+    if (!IsUpgradeTypeValid(header->upgradeType)){
+        IAP_APP_ERROR("[HEADER] error: upgrade type.\n");
+        return IAP_APP_ERR_HEADER_UPGRADE_TYPE;
+    }
+
+    // Check block info
+    if (!IsBlockInfoValid(&header->block, header->upgradeType)){
+        IAP_APP_ERROR("[HEADER] error: BLOCK INFO.\n");
+        return IAP_APP_ERR_HEADER_BLOCK_INFO;
+    }
+
+    // Check encrypt information
+    if (!IsEncryptInfoValid(&header->encrypt)){
+        IAP_APP_ERROR("[HEADER] error: encrypt.\n");
+        return IAP_APP_ERR_HEADER_ENCRYPT;
+    }
+
+    return IAP_APP_ERR_NONE;
 }
 
 static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t length){
@@ -172,8 +372,24 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
         return IAP_APP_ERR_LENGTH;
     }
 
+    // get header struct.
     IAP_HeaderTypedef * header = (IAP_HeaderTypedef *)payload;
+
+    // print header.
     PrintHeaderInfo(header);
+
+    // check header.
+    errCode = IAP_Header_Check(header);
+    if(IAP_APP_ERR_NONE != errCode){
+        IAP_APP_ERROR("[CMD] error: header check: 0x%02X\n", errCode);
+        return errCode;
+    }
+
+    // store header information to flash.
+    IAP_APP_DEBUG("TODO : Store header info to flash.\n");
+
+    // start upgrade.
+    cmdCtl.upgrade_flag = 1;
 
     return errCode;
 }
@@ -228,6 +444,12 @@ static IAP_APP_ErrCode_t IAP_APP_cmd_dispatch(uint8_t *data, uint16_t len){
         
         case IAP_CMD_FLASH_WRITE:{
             IAP_APP_DEBUG("CMD: WRITE\n");
+            if(!cmdCtl.upgrade_flag){
+                IAP_APP_ERROR("[CMD] error: condition not satisfied.\n");
+                errCode = IAP_APP_ERR_STATE_NOT_SATISFIED;
+                break;
+            }
+
         }break;
 
         case IAP_CMD_FLASH_READ:{

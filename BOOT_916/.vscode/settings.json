@@ -8,7 +8,9 @@
         "platform_api.h": "c",
         "*.cgen": "c",
         "*.inc": "c",
-        "iap_916.h": "c"
+        "iap_916.h": "c",
+        "iap_flash_map.h": "c",
+        "IAP_FLASH_MAP.H": "cpp"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
