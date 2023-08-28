@@ -21,6 +21,20 @@
 #define IAP_APP_DEBUG(...)      
 #endif
 
+
+
+// INFO BEGIN.
+// TODO: Get this information from APP param area in flash later.
+static const char bUpgradeFlag[] = "INGCHIPS";
+static const char bChipID[]      = "ING91683C_TB";
+static const char bItemStr[]     = "ING_USB_IAP_TEST";
+static const char bHardware[]    = "V1.0.0";
+static const char bSoftware[]    = "V2.1.3";
+#define GET_STR_LEN(x)           (strlen(x))
+// INFO END.
+
+
+
 // 传输层接收APP命令使用此buffer存数据
 // 传输层发送APP命令从此buffer取数据
 static uint8_t appBuffer[IAP_APP_MAX_BUFFER_SIZE];
@@ -165,17 +179,6 @@ static void PrintHeaderInfo(IAP_HeaderTypedef * iapHeader){
         }
     }
 }
-
-
-
-// INFO BEGIN.
-static const char bUpgradeFlag[] = "INGCHIPS";
-static const char bChipID[]      = "ING91683C_TB";
-static const char bItemStr[]     = "ING_USB_IAP_TEST";
-static const char bHardware[]    = "V1.0.0";
-static const char bSoftware[]    = "V2.1.3";
-#define GET_STR_LEN(x)           (strlen(x))
-// INFO END.
 
 static uint8_t IAP_APP_VersionFormatValidCheck(char *str){
     if(str[0] != 'V')    return IAP_INVALID;
