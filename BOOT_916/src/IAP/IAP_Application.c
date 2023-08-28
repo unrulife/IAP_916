@@ -21,7 +21,7 @@
 #define IAP_APP_DEBUG(...)      
 #endif
 
-
+// =================================================================================================
 
 // INFO BEGIN.
 // TODO: Get this information from APP param area in flash later.
@@ -33,24 +33,55 @@ static const char bSoftware[]    = "V2.1.3";
 #define GET_STR_LEN(x)           (strlen(x))
 // INFO END.
 
-
+// =================================================================================================
 
 // 传输层接收APP命令使用此buffer存数据
 // 传输层发送APP命令从此buffer取数据
 static uint8_t appBuffer[IAP_APP_MAX_BUFFER_SIZE];
 
 static IAP_APP_ctl_t cmdCtl = {
+    // APP CMD control
     .rspCmd = 0x00,
     .buffer = (uint8_t *)&appBuffer[0],
     .size   = 0,
-    .upgrade_flag = 0,
+    .payload_size = 0,
+    .payload = NULL,
+
+    // upgrade control
+    .upgrade_state = IAP_UPGRADE_STATE_IDLE,
+    .nextBlockNum = 0,
+    .nextOffsetAddr = 0,
+
+    // Record header information.
+    .chk.type = IAP_CHECK_TYPE_CRC,
+    .chk.val.CRC = 0x0000,
+    .sblockSize = 0x0000,
+    .tBlockNum = 0x0000,
+    .upgrdType = IAP_UPGRADE_TYPE_APP_ONLY,
+    .encrypt.en = 0,
+    .encrypt.type = IAP_ENCRYPT_TYPE_AES128,
+    .encrypt.key = {0},
+    .encrypt.iv = {0},
 };
 
+// =================================================================================================
+static int IAP_Flash_Erase(void){
+    return erase_flash_sector(APP_START_ADDR); // for test.
+}
 
-// --------------------------------------------------------------------------------------------
-// --------------------------------------------------------------------------------------------
-// --------------------------------------------------------------------------------------------
+static IAP_APP_ErrCode_t IAP_Flash_Write(uint32_t offsetAddr, uint8_t *buffer, uint16_t size){
+    // if(program_flash(APP_START_ADDR + offsetAddr, buffer, size)){
+    //     return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+    // }
+    return IAP_APP_ERR_NONE;
+}
 
+static uint8_t * IAP_Flash_StartAddr_Get(void){
+    return (uint8_t *)APP_START_ADDR;
+}
+
+
+// =================================================================================================
 uint8_t * IAP_GetAppBuffer(void){
     return (uint8_t *)&appBuffer[0];
 }
@@ -119,8 +150,7 @@ static uint8_t IsAppCrcValid(uint8_t *data, uint16_t len){
     return 1;
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// ---------------------------------------------------------------------------------------------------------------
+// =================================================================================================
 static void PrintStr(char *comment, char *str, uint8_t len){
     uint8_t i;
     IAP_APP_DEBUG("%s", comment);
@@ -207,8 +237,6 @@ static uint8_t IsCheckInfoValid(IAP_CheckInfoTypedef * check){
     return IAP_INVALID; //unsupported check type.
 }
 
-
-
 static uint8_t IsUpgradeTypeValid(uint8_t upgradeType){
 
 #if USER_CFG_IAP_UPGRADE_TYPE_SUPPORT_APP_ONLY_EN
@@ -259,7 +287,7 @@ static uint8_t IsBlockInfoValid(IAP_BlockInfoTypedef * block, uint8_t upgradeTyp
 
     // block size check.
     if(block->size < IAP_MIN_BLOCK_SIZE || block->size > IAP_MAX_BLOCK_SIZE){
-        IAP_APP_ERROR("[HEADER] error: invalid block_size! \n");
+        IAP_APP_ERROR("[HEADER] error: invalid blockSize! \n");
         return IAP_INVALID;
     }
 
@@ -306,8 +334,6 @@ static uint8_t IsEncryptInfoValid(IAP_EncryptInfoTypedef * encrypt){
 
     return IAP_VALID; // success.
 }
-
-
 
 static IAP_APP_ErrCode_t IAP_Header_Check(IAP_HeaderTypedef * header){
     
@@ -368,6 +394,23 @@ static IAP_APP_ErrCode_t IAP_Header_Check(IAP_HeaderTypedef * header){
     return IAP_APP_ERR_NONE;
 }
 
+static void IAP_Fill_header_info(IAP_HeaderTypedef * header){
+    cmdCtl.chk.type = header->check.type;
+    cmdCtl.chk.val.CRC = header->check.val.CRC;
+    cmdCtl.sblockSize = header->block.size;
+    cmdCtl.tBlockNum = header->block.num;
+    cmdCtl.upgrdType = header->upgradeType;
+    cmdCtl.encrypt.en = header->encrypt.enable;
+    cmdCtl.encrypt.type = header->encrypt.type;
+    memcpy(cmdCtl.encrypt.key, header->encrypt.key, 16);
+    memcpy(cmdCtl.encrypt.iv, header->encrypt.iv, 16);
+}
+
+static void IAP_CtlInit(void){
+    memset(&cmdCtl, 0, sizeof(IAP_APP_ctl_t));
+    cmdCtl.buffer = (uint8_t *)&appBuffer[0];
+}
+
 static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t length){
 
     IAP_APP_ErrCode_t errCode = IAP_APP_ERR_NONE;
@@ -393,24 +436,119 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
     // store header information to flash.
     IAP_APP_DEBUG("TODO : Store header info to flash.\n");
 
+    // Init stu
+    IAP_CtlInit();
+
+    // Erase flash.
+    IAP_Flash_Erase();
+
+    // record upgrade info.
+    IAP_Fill_header_info(header);
+
     // start upgrade.
-    cmdCtl.upgrade_flag = 1;
+    cmdCtl.upgrade_state = IAP_UPGRADE_STATE_BUSY;
 
     return errCode;
 }
-
 
 static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t length){
 
     IAP_APP_ErrCode_t errCode = IAP_APP_ERR_NONE;
 
     // check upgrade state.
-    if(!cmdCtl.upgrade_flag){
-        IAP_APP_ERROR("[CMD] error: upgrade condition not satisfied.\n");
+    if(cmdCtl.upgrade_state != IAP_UPGRADE_STATE_BUSY){
+        IAP_APP_ERROR("[WR] error: upgrade condition not satisfied.\n");
         return IAP_APP_ERR_STATE_NOT_SATISFIED;
     }
 
-    // check 
+    IAP_BlockWrite_t * fWrite = (IAP_BlockWrite_t *)payload;
+    uint16_t currBlockSize = (length - 6);
+
+    // last block num must be 0xFFFF
+    if (cmdCtl.nextBlockNum + 1 == cmdCtl.tBlockNum){
+        IAP_APP_DEBUG("[WR] This block is last block.\n");
+        if (fWrite->blockNum != IAP_APP_LAST_BLOCK){
+            IAP_APP_ERROR("[WR] error: block num, last block must be 0xFFFF, but recv[0x%04x]\n", fWrite->blockNum);
+            return IAP_APP_ERR_BLOCK_NUM;
+        }
+    }
+    // other block num should not be 0xFFFF
+    else if(cmdCtl.nextBlockNum + 1 < cmdCtl.tBlockNum){
+        if (fWrite->blockNum == IAP_APP_LAST_BLOCK){
+            IAP_APP_ERROR("[WR] error: block num, middle block should not be 0xFFFF, must[0x%04x]\n", cmdCtl.nextBlockNum);
+            return IAP_APP_ERR_BLOCK_NUM;
+        }
+    }
+    // exceed max block num.
+    else {
+        IAP_APP_ERROR("[WR] error: block num, exceed max=[0x%04x]\n", cmdCtl.tBlockNum);
+        return IAP_APP_ERR_BLOCK_NUM;
+    }
+
+    // last block.
+    if (fWrite->blockNum == IAP_APP_LAST_BLOCK){
+
+        // check offset address
+        if ( fWrite->offsetAddr != cmdCtl.nextOffsetAddr ){
+            IAP_APP_ERROR("[WR] error: offsetAddr_last: must[0x%08x], Recv[0x%08x]\n", cmdCtl.nextOffsetAddr, fWrite->offsetAddr);
+            return IAP_APP_ERR_WR_OFFSET_ADDR;
+        }
+        // check block data size
+        if ( currBlockSize > cmdCtl.sblockSize ){
+            IAP_APP_ERROR("[WR] error: blockSize_last: [%d] > [%d]\n", currBlockSize, cmdCtl.sblockSize);
+            return IAP_APP_ERR_BLOCK_SIZE;
+        }
+        // store to flash.
+        if (IAP_Flash_Write(fWrite->offsetAddr, fWrite->blockData, currBlockSize) != IAP_APP_ERR_NONE){
+            IAP_APP_ERROR("[WR] error: flash write last: offsetAddr[0x%08x], size[%d]\n", fWrite->offsetAddr, currBlockSize);
+            return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+        }
+
+        // check CRC.
+        uint32_t allBinSize = (cmdCtl.nextOffsetAddr + currBlockSize);
+        uint8_t * pBinData   = (uint8_t *)IAP_Flash_StartAddr_Get();
+        uint16_t allBinCRC = IAP_Get_CRC(pBinData, allBinSize);
+        if(allBinCRC != cmdCtl.chk.val.CRC){
+            IAP_APP_ERROR("[WR] error: =====>CRC CHECK: calc[0x%08x], recv[0x%08x]\n", allBinCRC, cmdCtl.chk.val.CRC);
+            return IAP_APP_ERR_CRC;
+        } else {
+            IAP_APP_DEBUG("[WR] ----------->CRC OK.\n");
+        }
+
+        // update control variable.
+        cmdCtl.upgrade_state = IAP_UPGRADE_STATE_OVER;
+    }
+    // not last.
+    else {
+
+        // check block number
+        if (fWrite->blockNum != cmdCtl.nextBlockNum) {
+            IAP_APP_ERROR("[WR] error: blockNum: must[%d], Recv[%d]\n", cmdCtl.nextBlockNum, fWrite->blockNum);
+            return IAP_APP_ERR_BLOCK_NUM;
+        }
+
+        // check offset address
+        if ( fWrite->offsetAddr != cmdCtl.nextOffsetAddr ){
+            IAP_APP_ERROR("[WR] error: offsetAddr: must[0x%08x], Recv[0x%08x]\n", cmdCtl.nextOffsetAddr, fWrite->offsetAddr);
+            return IAP_APP_ERR_WR_OFFSET_ADDR;
+        }
+
+        // check block data size
+        if ( currBlockSize != cmdCtl.sblockSize ){
+            IAP_APP_ERROR("[WR] error: blockSize: must[%d], Recv[%d]\n", cmdCtl.sblockSize, currBlockSize);
+            return IAP_APP_ERR_BLOCK_SIZE;
+        }
+
+        // store to flash.
+        if (IAP_Flash_Write(fWrite->offsetAddr, fWrite->blockData, currBlockSize) != IAP_APP_ERR_NONE){
+            IAP_APP_ERROR("[WR] error: flash write: offsetAddr[0x%08x], size[%d]\n", fWrite->offsetAddr, currBlockSize);
+            return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+        }
+
+        // update control variable.
+        cmdCtl.nextBlockNum++;
+        cmdCtl.nextOffsetAddr += currBlockSize;
+    }
 
     return errCode;
 }

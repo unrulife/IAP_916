@@ -13,7 +13,7 @@
 #define IAP_INVALID     (0)
 #define IAP_VALID       (1)
 
-// --------------------------------------------------------------------------------
+// =================================================================================================
 // CMD list
 typedef enum{
     // HOST
@@ -54,6 +54,14 @@ typedef enum{
 
 } IAP_APP_ErrCode_t;
 
+// upgrade state.
+typedef enum{
+    IAP_UPGRADE_STATE_IDLE              = 0x00,
+    IAP_UPGRADE_STATE_BUSY              = 0x01,
+    IAP_UPGRADE_STATE_OVER              = 0x02,
+
+} IAP_APP_UpgradeState_t;
+
 typedef struct __attribute__((packed)){
     uint8_t CMD;
     uint8_t errCode;
@@ -69,13 +77,40 @@ typedef struct __attribute__((packed)){
 } IAP_APP_cmd_t;
 
 typedef struct __attribute__((packed)){
+    uint8_t type;
+    union{
+        uint16_t CRC;
+        uint16_t SUM;
+    }val;
+} IAP_CheckTypedef;
+
+typedef struct __attribute__((packed)){
+    uint8_t en;
+    uint8_t type;
+    uint8_t key[16];
+    uint8_t iv[16];
+} IAP_EncryptTypedef;
+
+typedef struct __attribute__((packed)){
+    // APP CMD control
     uint8_t rspCmd;
     uint8_t *buffer;
     uint16_t size;
     uint16_t payload_size;
     uint8_t *payload;
 
-    uint8_t upgrade_flag;
+    // upgrade control
+    IAP_APP_UpgradeState_t upgrade_state;
+    uint16_t nextBlockNum;
+    uint32_t nextOffsetAddr;
+
+    // Record header information.
+    IAP_CheckTypedef chk;
+    uint16_t sblockSize;
+    uint16_t tBlockNum;
+    uint8_t upgrdType;
+    IAP_EncryptTypedef encrypt;
+
 } IAP_APP_ctl_t;
 
 
@@ -175,6 +210,17 @@ typedef struct
     uint8_t reserved[22];
 	
 }IAP_HeaderTypedef;
+
+// =================================================================================================
+
+#define IAP_APP_LAST_BLOCK  0xFFFF
+
+typedef struct __attribute__((packed)) {
+	uint16_t blockNum;
+    uint32_t offsetAddr;
+    uint8_t  blockData[1];
+	
+}IAP_BlockWrite_t;
 
 
 
