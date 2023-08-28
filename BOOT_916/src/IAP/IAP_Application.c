@@ -279,25 +279,27 @@ static uint8_t IsEncryptInfoValid(IAP_EncryptInfoTypedef * encrypt){
 
     // disable encrypt, return success.
     if (encrypt->enable == 0x00){
-        return 1;
+        return IAP_VALID;
     }
 
-#if USER_CFG_IAP_ENCRYPT_TYPE_SUPPORT_XOR_EN
     if( encrypt->type == IAP_ENCRYPT_TYPE_XOR ){
+#if USER_CFG_IAP_ENCRYPT_TYPE_SUPPORT_XOR_EN
         if (encrypt->len != IAP_ENCRYPT_LEN_XOR){
             return IAP_INVALID;
         }
-    }
+#else
+        return IAP_INVALID;
 #endif
-
-#if USER_CFG_IAP_ENCRYPT_TYPE_SUPPORT_AES_EN
+    }
     else if( encrypt->type == IAP_ENCRYPT_TYPE_AES128 ){
+#if USER_CFG_IAP_ENCRYPT_TYPE_SUPPORT_AES_EN
         if (encrypt->len != IAP_ENCRYPT_LEN_AES128){
             return IAP_INVALID;
         }
-    }
+#else
+        return IAP_INVALID;
 #endif
-
+    }
     else{
         return IAP_INVALID; //unsupported encrypt type.
     }
@@ -398,6 +400,22 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
 }
 
 
+static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t length){
+
+    IAP_APP_ErrCode_t errCode = IAP_APP_ERR_NONE;
+
+    // check upgrade state.
+    if(!cmdCtl.upgrade_flag){
+        IAP_APP_ERROR("[CMD] error: upgrade condition not satisfied.\n");
+        return IAP_APP_ERR_STATE_NOT_SATISFIED;
+    }
+
+    // check 
+
+    return errCode;
+}
+
+
 // 3F AA 00 00 80 09 00 A0 04 00 11 22 33 44 AA BB 78
 static IAP_APP_ErrCode_t IAP_APP_cmd_dispatch(uint8_t *data, uint16_t len){
 
@@ -447,12 +465,7 @@ static IAP_APP_ErrCode_t IAP_APP_cmd_dispatch(uint8_t *data, uint16_t len){
         
         case IAP_CMD_FLASH_WRITE:{
             IAP_APP_DEBUG("CMD: WRITE\n");
-            if(!cmdCtl.upgrade_flag){
-                IAP_APP_ERROR("[CMD] error: condition not satisfied.\n");
-                errCode = IAP_APP_ERR_STATE_NOT_SATISFIED;
-                break;
-            }
-
+            errCode = IAP_CMD_FlashWrite_handler(APP_CMD->payload, APP_CMD->length);
         }break;
 
         case IAP_CMD_FLASH_READ:{
