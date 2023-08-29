@@ -22,6 +22,9 @@
 #endif
 
 // =================================================================================================
+extern void Uart_Send_Complete_Check(void);
+
+// =================================================================================================
 
 // INFO BEGIN.
 // TODO: Get this information from APP param area in flash later.
@@ -65,38 +68,65 @@ static IAP_APP_ctl_t cmdCtl = {
 };
 
 // =================================================================================================
+#define IAP_UPGRADE_START_ADDR  (APP_START_ADDR)
+#define IAP_MAX_UPGRADE_SIZE    (APP_CODE_SIZE)
 #define FLASH_MIN_ERASE_UNIT    (EFLASH_SECTOR_SIZE)
 
-static IAP_APP_ErrCode_t IAP_Flash_Erase(uint32_t size){
+static uint8_t IAP_Flash_Erase(uint32_t size){
 
-    if(size > APP_CODE_SIZE){
-        IAP_APP_ERROR("[FLASH] error: erase size too large [%d]>[%d]\n", size, APP_CODE_SIZE);
-        return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+    if(size > IAP_MAX_UPGRADE_SIZE){
+        IAP_APP_ERROR("[FLASH] error: erase size too large [%d]>[%d]\n", size, IAP_MAX_UPGRADE_SIZE);
+        return IAP_FAIL;
     }
 
     uint16_t SEC_NUM = (size % FLASH_MIN_ERASE_UNIT)? (size / FLASH_MIN_ERASE_UNIT + 1) : (size / FLASH_MIN_ERASE_UNIT);
     for(uint16_t index = 0; index < SEC_NUM; index++){
-        if(erase_flash_sector(APP_START_ADDR + (index * FLASH_MIN_ERASE_UNIT))){
-            IAP_APP_ERROR("[FLASH] error: erase fail. addr=[0x%08X]\n", APP_START_ADDR + (index * FLASH_MIN_ERASE_UNIT));
-            return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+        if(erase_flash_sector(IAP_UPGRADE_START_ADDR + (index * FLASH_MIN_ERASE_UNIT))){
+            IAP_APP_ERROR("[FLASH] error: erase fail. addr=[0x%08X]\n", IAP_UPGRADE_START_ADDR + (index * FLASH_MIN_ERASE_UNIT));
+            return IAP_FAIL;
         }
     }
-    return IAP_APP_ERR_NONE;
+    return IAP_OK;
 }
 
-static IAP_APP_ErrCode_t IAP_Flash_Write(uint32_t offsetAddr, uint8_t *buffer, uint16_t size){
-    int err = write_flash(APP_START_ADDR + offsetAddr, buffer, size);
+static uint8_t IAP_Flash_Write(uint32_t offsetAddr, uint8_t *buffer, uint16_t size){
+    int err = write_flash(IAP_UPGRADE_START_ADDR + offsetAddr, buffer, size);
     if(err){
         IAP_APP_ERROR("[FLASH] error: write [%d]\n", err);
-        return IAP_APP_ERR_FLASH_OPERATE_FAIL;
+        return IAP_FAIL;
     }
-    return IAP_APP_ERR_NONE;
+    return IAP_OK;
 }
 
-static uint8_t * IAP_Flash_StartAddr_Get(void){
-    return (uint8_t *)APP_START_ADDR;
+static uint8_t * IAP_Flash_StartAddr_Get(uint32_t offsetAddr){
+    return (uint8_t *)(IAP_UPGRADE_START_ADDR + offsetAddr);
 }
 
+static uint8_t IAP_Flash_offsetAddr_valid_check(uint32_t offsetAddr, uint16_t read_size){
+    if ( offsetAddr < IAP_UPGRADE_START_ADDR ){
+        return IAP_INVALID;
+    }
+    if ( (offsetAddr+read_size) > (IAP_UPGRADE_START_ADDR+IAP_MAX_UPGRADE_SIZE) ){
+        return IAP_INVALID;
+    }
+    return IAP_VALID;
+}
+
+
+static void IAP_SwitchToApp(void) {
+    IAP_APP_ERROR("[CMD] JUMP TO APP [0x%08X]\n", IAP_UPGRADE_START_ADDR);
+    Uart_Send_Complete_Check();
+    for(int i=20000;i>0;i--);
+    platform_switch_app(IAP_UPGRADE_START_ADDR);
+}
+
+static void IAP_Reboot_Delay_Timeout_Callback(void){
+    platform_reset();
+}
+
+static void IAP_JumpToApp_Delay_Timeout_Callback(void){
+    IAP_SwitchToApp();
+}
 
 // =================================================================================================
 uint8_t * IAP_GetAppBuffer(void){
@@ -117,12 +147,12 @@ static void IAP_APP_PreparePayloadDataStart(void){
 static uint8_t IAP_APP_AddPayloadData(uint8_t *data, uint16_t len){
     if( len==0 && data==NULL ){
         IAP_APP_ERROR("[CMD] error: params.\n");
-        return 1;
+        return IAP_FAIL;
     }
     
     if( (len + cmdCtl.payload_size + IAP_APP_SEND_CMD_MIN_SIZE) > IAP_APP_MAX_BUFFER_SIZE ){
         IAP_APP_ERROR("[CMD] error: too much data to send.\n");
-        return 2;
+        return IAP_FAIL;
     }
 
     memcpy(cmdCtl.payload, data, len);
@@ -134,7 +164,7 @@ static uint8_t IAP_APP_AddPayloadData(uint8_t *data, uint16_t len){
     printf_hexdump(data, len);
 #endif
 
-    return 0;
+    return IAP_OK;
 }
 
 // send with payload. 
@@ -162,9 +192,11 @@ static uint8_t IsAppCrcValid(uint8_t *data, uint16_t len){
     uint16_t *CRC = (uint16_t *)&data[len-2];
     if(*CRC != IAP_Get_CRC(data, len-2)){
         IAP_APP_ERROR("[CMD] error: CRC: Calc[0x%04X], Recv[0x%04X]\n", IAP_Get_CRC(data, len-2), *CRC);
-        return 0;
+        return IAP_INVALID;
+    } else {
+        IAP_APP_DEBUG("[CMD] CRC:[0x%04X]\n", *CRC);
     }
-    return 1;
+    return IAP_VALID;
 }
 
 // =================================================================================================
@@ -520,14 +552,14 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
             return IAP_APP_ERR_BLOCK_SIZE;
         }
         // store to flash.
-        if (IAP_Flash_Write(fWrite->offsetAddr, fWrite->blockData, currBlockSize) != IAP_APP_ERR_NONE){
+        if (IAP_Flash_Write(fWrite->offsetAddr, fWrite->blockData, currBlockSize) != IAP_OK){
             IAP_APP_ERROR("[WR] error: flash write last: offsetAddr[0x%08x], size[%d]\n", fWrite->offsetAddr, currBlockSize);
             return IAP_APP_ERR_FLASH_OPERATE_FAIL;
         }
 
         // check CRC.
         uint32_t allBinSize = (cmdCtl.nextOffsetAddr + currBlockSize);
-        uint8_t * pBinData   = (uint8_t *)IAP_Flash_StartAddr_Get();
+        uint8_t * pBinData   = (uint8_t *)IAP_Flash_StartAddr_Get(0);
         uint16_t allBinCRC = IAP_Get_CRC(pBinData, allBinSize);
         // iap_switch_big_endian_u16(&allBinCRC);
         if(allBinCRC != cmdCtl.chk.val.CRC){
@@ -562,7 +594,7 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
         }
 
         // store to flash.
-        if (IAP_Flash_Write(fWrite->offsetAddr, fWrite->blockData, currBlockSize) != IAP_APP_ERR_NONE){
+        if (IAP_Flash_Write(fWrite->offsetAddr, fWrite->blockData, currBlockSize) != IAP_OK){
             IAP_APP_ERROR("[WR] error: flash write: offsetAddr[0x%08x], size[%d]\n", fWrite->offsetAddr, currBlockSize);
             return IAP_APP_ERR_FLASH_OPERATE_FAIL;
         }
@@ -574,6 +606,84 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
 
     return errCode;
 }
+
+static IAP_APP_ErrCode_t IAP_CMD_FlashRead_handler(uint8_t * payload, uint16_t length, uint8_t * outData, uint16_t * outLen){
+
+    IAP_APP_ErrCode_t errCode = IAP_APP_ERR_NONE;
+
+    // check upgrade state.
+    if(cmdCtl.upgrade_state == IAP_UPGRADE_STATE_IDLE){
+        IAP_APP_ERROR("[RD] error: upgrade condition not satisfied.\n");
+        return IAP_APP_ERR_STATE_NOT_SATISFIED;
+    }
+
+    IAP_BlockRead_t * fRead = (IAP_BlockRead_t *)payload;
+
+    // check offset address & read size.
+    if(IAP_INVALID == IAP_Flash_offsetAddr_valid_check(fRead->offsetAddr, fRead->readBytes)){
+        IAP_APP_ERROR("[RD] error: param.\n");
+        return IAP_APP_ERR_PARAM;
+    }
+
+    // read data to payload area of sending buffer.
+    outData = (uint8_t *)IAP_Flash_StartAddr_Get(fRead->offsetAddr);
+    *outLen = fRead->readBytes;
+
+    return errCode;
+}
+
+static IAP_APP_ErrCode_t IAP_CMD_Reboot_handler(uint8_t * payload, uint16_t length){
+
+    IAP_APP_ErrCode_t errCode = IAP_APP_ERR_NONE;
+
+    // if(cmdCtl.upgrade_state == IAP_UPGRADE_STATE_IDLE){
+    //     IAP_APP_ERROR("[RB] error: upgrade condition not satisfied.\n");
+    //     return IAP_APP_ERR_STATE_NOT_SATISFIED;
+    // }
+
+    if(length != 2){
+        IAP_APP_ERROR("[RB] error: LEN=%d\n", length);
+        return IAP_APP_ERR_LENGTH;
+    }
+
+    uint16_t * delay_ms = (uint16_t *)payload;
+
+    if ((*delay_ms) > IAP_CMD_REBOOT_MAX_DELAY_MS){
+        IAP_APP_ERROR("[RB] error: delay_ms=%d > %d\n", (*delay_ms), IAP_CMD_REBOOT_MAX_DELAY_MS);
+        return IAP_APP_ERR_PARAM;
+    }
+
+    platform_set_timer(IAP_Reboot_Delay_Timeout_Callback, (uint32_t)((*delay_ms)*1000/625));
+
+    return errCode;
+}
+
+static IAP_APP_ErrCode_t IAP_CMD_SwitchApp_handler(uint8_t * payload, uint16_t length){
+
+    IAP_APP_ErrCode_t errCode = IAP_APP_ERR_NONE;
+
+    // if(cmdCtl.upgrade_state == IAP_UPGRADE_STATE_IDLE){
+    //     IAP_APP_ERROR("[SA] error: upgrade condition not satisfied.\n");
+    //     return IAP_APP_ERR_STATE_NOT_SATISFIED;
+    // }
+
+    if(length != 2){
+        IAP_APP_ERROR("[SA] error: LEN=%d\n", length);
+        return IAP_APP_ERR_LENGTH;
+    }
+
+    uint16_t * delay_ms = (uint16_t *)payload;
+
+    if ((*delay_ms) > IAP_CMD_SWITCH_APP_MAX_DELAY_MS){
+        IAP_APP_ERROR("[SA] error: delay_ms=%d > %d\n", (*delay_ms), IAP_CMD_SWITCH_APP_MAX_DELAY_MS);
+        return IAP_APP_ERR_PARAM;
+    }
+
+    platform_set_timer(IAP_JumpToApp_Delay_Timeout_Callback, (uint32_t)((*delay_ms)*1000/625));
+
+    return errCode;
+}
+
 
 
 // 3F AA 00 00 80 09 00 A0 04 00 11 22 33 44 AA BB 78
@@ -630,15 +740,22 @@ static IAP_APP_ErrCode_t IAP_APP_cmd_dispatch(uint8_t *data, uint16_t len){
 
         case IAP_CMD_FLASH_READ:{
             IAP_APP_DEBUG("CMD: READ\n");
-            // IAP_APP_AddPayloadData(DDD, LLL);
+            uint8_t *pReadData = NULL;
+            uint16_t readLen = 0;
+            errCode = IAP_CMD_FlashRead_handler(APP_CMD->payload, APP_CMD->length, pReadData, &readLen);
+            if(errCode == IAP_APP_ERR_NONE){
+                IAP_APP_AddPayloadData(pReadData, readLen);
+            }
         }break;
 
         case IAP_CMD_REBOOT:{
             IAP_APP_DEBUG("CMD: REBOOT\n");
+            errCode = IAP_CMD_Reboot_handler(APP_CMD->payload, APP_CMD->length);
         }break;
 
         case IAP_CMD_SWITCH_APP:{
             IAP_APP_DEBUG("CMD: SWTICH APP\n");
+            errCode = IAP_CMD_SwitchApp_handler(APP_CMD->payload, APP_CMD->length);
         }break;
 
         default:

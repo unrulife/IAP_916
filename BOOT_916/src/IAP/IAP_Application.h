@@ -9,7 +9,10 @@
 #define IAP_APP_SEND_CMD_MIN_SIZE       (7) // CMD(1B) + ERRCODE(1B) + RSPCMD(1B) + LEN(2B) + CRC(2B)
 #define IAP_APP_SEND_CMD_PAYLOAD_OFFSET (5)
 
-// valid check code.
+// ERROR code.
+#define IAP_OK          (0)
+#define IAP_FAIL        (1)
+
 #define IAP_INVALID     (0)
 #define IAP_VALID       (1)
 
@@ -213,7 +216,9 @@ typedef struct
 
 // =================================================================================================
 
-#define IAP_APP_LAST_BLOCK  0xFFFF
+#define IAP_APP_LAST_BLOCK                  0xFFFF
+#define IAP_CMD_SWITCH_APP_MAX_DELAY_MS     (1000)
+#define IAP_CMD_REBOOT_MAX_DELAY_MS         (1000)
 
 typedef struct __attribute__((packed)) {
 	uint16_t blockNum;
@@ -221,6 +226,12 @@ typedef struct __attribute__((packed)) {
     uint8_t  blockData[1];
 	
 }IAP_BlockWrite_t;
+
+typedef struct __attribute__((packed)) {
+    uint32_t offsetAddr;
+    uint16_t readBytes;
+	
+}IAP_BlockRead_t;
 
 
 
