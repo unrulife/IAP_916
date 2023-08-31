@@ -197,9 +197,18 @@ typedef struct
     unsigned char iv[16];
 }IAP_EncryptInfoTypedef;
 
+typedef struct __attribute__((packed))
+{
+	IAP_ChipIDTypedef chip_id;
+    IAP_ItemInfoTypedef item_info;
+    uint8_t HW[6];
+    uint8_t SW[6];
+	
+}IAP_AppVerInfoTypedef;
+
 
 /* OTA 128 bytes header information struct */
-typedef struct 
+typedef struct
 {
 	uint8_t upgradeFlag[8];
     IAP_ChipIDTypedef chip_id;
@@ -213,6 +222,8 @@ typedef struct
     uint8_t reserved[22];
 	
 }IAP_HeaderTypedef;
+
+
 
 // =================================================================================================
 

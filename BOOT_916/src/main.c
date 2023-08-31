@@ -105,7 +105,7 @@ int app_main()
 
     setup_peripherals();
     SYSCTRL_Init();
-    IAP_Init();
+    // IAP_Init();
 
     trace_rtt_init(&trace_ctx);
     // TODO: config trace mask

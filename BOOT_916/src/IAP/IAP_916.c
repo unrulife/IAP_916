@@ -9,6 +9,7 @@
 #include "btstack_util.h"
 #include "IAP_Transport.h"
 #include "IAP_Application.h"
+#include "IAP_Params.h"
 
 
 
@@ -109,6 +110,8 @@ void IAP_Init(void){
     IAP_Application_Init();
     IAP_Transport_Init();
     bsp_usb_init();
+
+//    IAP_ParamsTest();
     
     
 

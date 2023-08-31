@@ -8,6 +8,7 @@
 #include "IAP_Transport.h"
 #include "eflash.h"
 #include "rom_tools.h"
+#include "IAP_Params.h"
 
 #if 1
 #define IAP_APP_ERROR(...)	platform_printf(__VA_ARGS__)
