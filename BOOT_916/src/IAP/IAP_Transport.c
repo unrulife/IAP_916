@@ -6,15 +6,16 @@
 #include "bsp_usb_hid_iap.h"
 #include "btstack_util.h"
 #include "IAP_Application.h"
+#include "IAP_UserDef.h"
 
 
-#if 1
+#if USER_IAP_TRANSPORT_ERROR_EN
 #define TRANSPORT_ERROR(...)	platform_printf(__VA_ARGS__)
 #else
 #define TRANSPORT_ERROR(...)      
 #endif
 
-#if 0
+#if USER_IAP_TRANSPORT_DEBUG_EN
 #define TRANSPORT_DEBUG(...)	platform_printf(__VA_ARGS__)
 #else
 #define TRANSPORT_DEBUG(...)      
@@ -230,7 +231,7 @@ static uint8_t IAP_Transport_send_single_pack(uint8_t first_flag, uint16_t pack_
     // prepare length.
     sendCtl.size = payload_len + IAP_TRANSPORT_MIN_LEN;
 
-#if 1
+#if USER_IAP_TRANSPORT_DEBUG_EN
     platform_printf("SingleSend[%d]: ", sendCtl.size);
     printf_hexdump(sendCtl.buf, sendCtl.size);
 #endif
@@ -301,7 +302,7 @@ static void bsp_usb_hid_iap_send_complete_callback(void){
 // recv callback.
 static void bsp_usb_hid_iap_recv_callback(uint8_t *data, uint16_t len){
     
-#if 0
+#if USER_IAP_TRANSPORT_DEBUG_EN
     platform_printf("RECV[%d]: ", len);
     printf_hexdump(data, len);
 #endif

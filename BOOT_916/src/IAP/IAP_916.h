@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include "IAP_FLASH_MAP.H"
 
+
+
+extern void Uart_Send_Complete_Check(void);
 void IAP_Init(void);
 
 #endif

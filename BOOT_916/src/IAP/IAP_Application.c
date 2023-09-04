@@ -9,14 +9,15 @@
 #include "eflash.h"
 #include "rom_tools.h"
 #include "IAP_Params.h"
+#include "IAP_UserDef.h"
 
-#if 1
+#if USER_IAP_APP_ERROR_LOG_EN
 #define IAP_APP_ERROR(...)	platform_printf(__VA_ARGS__)
 #else
 #define IAP_APP_ERROR(...)      
 #endif
 
-#if 1
+#if USER_IAP_APP_DEBUG_LOG_EN
 #define IAP_APP_DEBUG(...)	platform_printf(__VA_ARGS__)
 #else
 #define IAP_APP_DEBUG(...)      
@@ -27,13 +28,16 @@ extern void Uart_Send_Complete_Check(void);
 
 // =================================================================================================
 
+#define IAP_UPGRADE_START_ADDR  (APP_START_ADDR)
+#define IAP_MAX_UPGRADE_SIZE    (APP_CODE_SIZE)
+#define FLASH_MIN_ERASE_UNIT    (EFLASH_SECTOR_SIZE)
+
 // INFO BEGIN.
-// TODO: Get this information from APP param area in flash later.
 static const char bUpgradeFlag[] = "INGCHIPS";
-static const char bChipID[]      = "ING91683C_TB";
-static const char bItemStr[]     = "ING_USB_IAP_TEST";
-static const char bHardware[]    = "V1.0.0";
-static const char bSoftware[]    = "V2.1.3";
+static const char bChipID[]      = USER_DEF_CHIP_ID;
+static const char bItemStr[]     = USER_DEF_ITEM_STR;
+static const char bHardware[]    = "V0.0.0";
+static const char bSoftware[]    = "V0.0.0";
 #define GET_STR_LEN(x)           (strlen(x))
 // INFO END.
 
@@ -69,10 +73,6 @@ static IAP_APP_ctl_t cmdCtl = {
 };
 
 // =================================================================================================
-#define IAP_UPGRADE_START_ADDR  (APP_START_ADDR)
-#define IAP_MAX_UPGRADE_SIZE    (APP_CODE_SIZE)
-#define FLASH_MIN_ERASE_UNIT    (EFLASH_SECTOR_SIZE)
-
 static uint8_t IAP_Flash_Erase(uint32_t size){
 
     if(size > IAP_MAX_UPGRADE_SIZE){
@@ -160,7 +160,7 @@ static uint8_t IAP_APP_AddPayloadData(uint8_t *data, uint16_t len){
     cmdCtl.payload += len;
     cmdCtl.payload_size += len;
 
-#if 1
+#if USER_IAP_APP_DEBUG_LOG_EN
     IAP_APP_DEBUG("ADD[%d]: ", len);
     printf_hexdump(data, len);
 #endif
@@ -180,7 +180,7 @@ static void IAP_APP_SendACK(uint8_t error){
     uint16_t *CRC = (uint16_t *)&cmdCtl.buffer[cmdCtl.size-2];
     *CRC  = IAP_Get_CRC((uint8_t *)cmdCtl.buffer, cmdCtl.size-2);
 
-#if 1
+#if USER_IAP_APP_DEBUG_LOG_EN
     IAP_APP_DEBUG("APP SEND ACK[%d]: ", cmdCtl.size);
     printf_hexdump(cmdCtl.buffer, cmdCtl.size);
 #endif
@@ -211,27 +211,27 @@ static void PrintStr(char *comment, char *str, uint8_t len){
 }
 
 static void PrintHeaderInfo(IAP_HeaderTypedef * iapHeader){
-
+#if USER_IAP_APP_DEBUG_LOG_EN
     platform_printf("\n\n ------------------ HEADER INFO -------------------\n");
     PrintStr((char *)"upgradeFlag: ", (char *)&iapHeader->upgradeFlag, 8);
 
-    IAP_APP_DEBUG("chip_id_len = %d\n", iapHeader->chip_id.len);
-    PrintStr((char *)"chip_id: ", (char *)&iapHeader->chip_id.str, iapHeader->chip_id.len);
+    IAP_APP_DEBUG("chip_id_len = %d\n", iapHeader->verInfo.chip_id.len);
+    PrintStr((char *)"chip_id: ", (char *)&iapHeader->verInfo.chip_id.str, iapHeader->verInfo.chip_id.len);
 
-    IAP_APP_DEBUG("item_info_len = %d\n", iapHeader->item_info.len);
-    PrintStr((char *)"item_info: ", (char *)&iapHeader->item_info.str, iapHeader->item_info.len);
+    IAP_APP_DEBUG("item_info_len = %d\n", iapHeader->verInfo.item_info.len);
+    PrintStr((char *)"item_info: ", (char *)&iapHeader->verInfo.item_info.str, iapHeader->verInfo.item_info.len);
 
-    PrintStr((char *)"HW: ", (char *)&iapHeader->HW, 6);
-    PrintStr((char *)"SW: ", (char *)&iapHeader->SW, 6);
+    PrintStr((char *)"HW: ", (char *)&iapHeader->verInfo.HW, 6);
+    PrintStr((char *)"SW: ", (char *)&iapHeader->verInfo.SW, 6);
 
     if (iapHeader->check.type == IAP_CHECK_TYPE_CRC){
         IAP_APP_DEBUG("check type = CRC\n");
         IAP_APP_DEBUG("check len = %d\n", iapHeader->check.len);
-        IAP_APP_DEBUG("check data: 0x%04X\n", iapHeader->check.val.CRC); 
+        IAP_APP_DEBUG("check data: 0x%04X\n", iapHeader->check.CRC); 
     } else {
         IAP_APP_DEBUG("check type = SUM\n");
         IAP_APP_DEBUG("check len = %d\n", iapHeader->check.len);
-        IAP_APP_DEBUG("check data: 0x%04X\n", iapHeader->check.val.SUM);
+        IAP_APP_DEBUG("check data: 0x%04X\n", iapHeader->check.SUM);
     }
 
     IAP_APP_DEBUG("block size = 0x%04X\n", iapHeader->block.size);
@@ -258,6 +258,7 @@ static void PrintHeaderInfo(IAP_HeaderTypedef * iapHeader){
             printf_hexdump(iapHeader->encrypt.key, iapHeader->encrypt.len);
         }
     }
+#endif
 }
 
 static uint8_t IAP_APP_VersionFormatValidCheck(char *str){
@@ -394,25 +395,25 @@ static IAP_APP_ErrCode_t IAP_Header_Check(IAP_HeaderTypedef * header){
     }
 
     // Check CHIP_ID
-    if ( (GET_STR_LEN(bChipID) != header->chip_id.len) || (memcmp(header->chip_id.str, bChipID, GET_STR_LEN(bChipID)) != 0) ){
+    if ( (GET_STR_LEN(bChipID) != header->verInfo.chip_id.len) || (memcmp(header->verInfo.chip_id.str, bChipID, GET_STR_LEN(bChipID)) != 0) ){
         IAP_APP_ERROR("[HEADER] error: chipID\n");
         return IAP_APP_ERR_HEADER_CHIP_ID;
     }
 
     // Check item information
-    if ( (GET_STR_LEN(bItemStr) != header->item_info.len) || (memcmp(header->item_info.str, bItemStr, GET_STR_LEN(bItemStr)) != 0) ){
+    if ( (GET_STR_LEN(bItemStr) != header->verInfo.item_info.len) || (memcmp(header->verInfo.item_info.str, bItemStr, GET_STR_LEN(bItemStr)) != 0) ){
         IAP_APP_ERROR("[HEADER] error: itemInfo\n");
         return IAP_APP_ERR_HEADER_ITEM_IINFO;
     }
 
     // Check hardware version
-    if (!IAP_APP_VersionFormatValidCheck((char *)header->HW)){
+    if (!IAP_APP_VersionFormatValidCheck((char *)header->verInfo.HW)){
         IAP_APP_ERROR("[HEADER] error: HW version.\n");
         return IAP_APP_ERR_HEADER_HARDWARE_VER;
     }
 
     // Check software version
-    if (!IAP_APP_VersionFormatValidCheck((char *)header->SW)){
+    if (!IAP_APP_VersionFormatValidCheck((char *)header->verInfo.SW)){
         IAP_APP_ERROR("[HEADER] error: SW version.\n");
         return IAP_APP_ERR_HEADER_SOFTWARE_VER;
     }
@@ -446,7 +447,7 @@ static IAP_APP_ErrCode_t IAP_Header_Check(IAP_HeaderTypedef * header){
 
 static void IAP_Fill_header_info(IAP_HeaderTypedef * header){
     cmdCtl.chk.type = header->check.type;
-    cmdCtl.chk.val.CRC = header->check.val.CRC;
+    cmdCtl.chk.val.CRC = header->check.CRC;
     cmdCtl.sblockSize = header->block.size;
     cmdCtl.tBlockNum = header->block.num;
     cmdCtl.upgrdType = header->upgradeType;
@@ -494,6 +495,9 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
 
     // record upgrade info.
     IAP_Fill_header_info(header);
+
+    // Update header to BOOT PARAM.
+    IAP_Params_update_Header_ToFlash(header);
 
     // start upgrade.
     cmdCtl.upgrade_state = IAP_UPGRADE_STATE_BUSY;
@@ -562,13 +566,17 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
         uint32_t allBinSize = (cmdCtl.nextOffsetAddr + currBlockSize);
         uint8_t * pBinData   = (uint8_t *)IAP_Flash_StartAddr_Get(0);
         uint16_t allBinCRC = IAP_Get_CRC(pBinData, allBinSize);
+        IAP_APP_DEBUG("allBinSize: 0x%X\n", allBinSize);
         // iap_switch_big_endian_u16(&allBinCRC);
         if(allBinCRC != cmdCtl.chk.val.CRC){
             IAP_APP_ERROR("[WR] error: =====>CRC CHECK: calc[0x%04x], recv[0x%04x]\n", allBinCRC, cmdCtl.chk.val.CRC);
             return IAP_APP_ERR_CRC;
         } else {
-            IAP_APP_DEBUG("[WR] ----------->CRC OK.\n");
+            IAP_APP_DEBUG("[WR] ----------->CRC OK:[0x%04x]\n", allBinCRC);
         }
+
+        // update allbinSize to BOOT PARAM flash.
+        IAP_Params_update_AllBinSize_ToFlash(allBinSize);
 
         // update control variable.
         cmdCtl.upgrade_state = IAP_UPGRADE_STATE_OVER;
@@ -700,7 +708,7 @@ static IAP_APP_ErrCode_t IAP_APP_cmd_dispatch(uint8_t *data, uint16_t len){
 
     IAP_APP_cmd_t * APP_CMD = (IAP_APP_cmd_t *)data;
 
-#if 1  //print.
+#if USER_IAP_APP_DEBUG_LOG_EN
     IAP_APP_DEBUG("CMD: 0x%02X\n", APP_CMD->CMD);
     IAP_APP_DEBUG("LEN: 0x%04X\n", APP_CMD->length);
     if(APP_CMD->length){
@@ -768,7 +776,9 @@ static IAP_APP_ErrCode_t IAP_APP_cmd_dispatch(uint8_t *data, uint16_t len){
 }
 
 static void IAP_APP_recv_cmd_callback(uint8_t *recvData, uint16_t recvLen){
+#if USER_IAP_APP_DEBUG_LOG_EN
     platform_printf("\n\n========>>>>>APP RECV[%d]: ", recvLen); printf_hexdump(recvData, recvLen);
+#endif
     
     IAP_APP_ErrCode_t errCode = IAP_APP_cmd_dispatch(recvData, recvLen);
     if(IAP_APP_ERR_NONE != errCode){

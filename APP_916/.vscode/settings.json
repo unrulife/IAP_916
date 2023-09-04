@@ -3,5 +3,9 @@
         "activityBar.background": "#460871",
         "titleBar.activeBackground": "#620C9E",
         "titleBar.activeForeground": "#FEFCFF"
+    },
+    "files.associations": {
+        "*.cgen": "c",
+        "iap_916.h": "c"
     }
 }

@@ -176,8 +176,8 @@ typedef struct
     union{
         unsigned short CRC;
         unsigned short SUM;
-    }val;
-	unsigned char data[2];
+        unsigned char val[4];   //4bytes.
+    };
 }IAP_CheckInfoTypedef;
 
 // BLOCK
@@ -211,10 +211,11 @@ typedef struct __attribute__((packed))
 typedef struct
 {
 	uint8_t upgradeFlag[8];
-    IAP_ChipIDTypedef chip_id;
-    IAP_ItemInfoTypedef item_info;
-    uint8_t HW[6];
-    uint8_t SW[6];
+    // IAP_ChipIDTypedef chip_id;
+    // IAP_ItemInfoTypedef item_info;
+    // uint8_t HW[6];
+    // uint8_t SW[6];
+    IAP_AppVerInfoTypedef verInfo;
     IAP_CheckInfoTypedef check;
     IAP_BlockInfoTypedef block;
     uint8_t  upgradeType;
