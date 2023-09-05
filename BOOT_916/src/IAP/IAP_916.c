@@ -13,6 +13,7 @@
 #include "stdbool.h"
 #include "rom_tools.h"
 #include "IAP_Flash_WP.h"
+#include "IAP_UserDef.h"
 
 
 #if 1
@@ -29,37 +30,6 @@
 
 // =================================================================================================
 
-
-// /**
-//  * @brief IAP_Task
-//  * 
-//  * @param pvParameters 
-//  */
-// static void IAP_Task(void *pvParameters){
-//     while(1){
-//         vTaskDelay(pdMS_TO_TICKS(1000));
-//         platform_printf("IAP_Task\n");
-//     }
-// }
-
-// /**
-//  * @brief IAP_Run
-//  * 
-//  */
-// static void IAP_Run(void){
-//     xTaskCreate((TaskFunction_t)IAP_Task,
-//                 "IAP",
-//                 configMINIMAL_STACK_SIZE,
-//                 NULL,
-//                 6,
-//                 NULL);
-// }
-
-// void bsp_usb_reinit_timeout(void)
-// {
-//     bsp_usb_init();
-//     platform_printf("USB cable reconnect.");
-// }
 
 static void BootInit(void){
     IAP_ParamsInit();
@@ -100,6 +70,7 @@ static bool IsAppCodeExist(void){
 }
 
 static void BootUpgradeStart(void){
+    IAP_Flash_WP_Init();
     IAP_Application_Init();
     IAP_Transport_Init();
     bsp_usb_init();
@@ -128,11 +99,14 @@ static bool IsAppCheckSuccess(void){
     return 1; // SUCCESS.
 }
 
-static void JumpToApp(void){
-    IAP_DEBUG("JUMP TO APP [0x%08X]\n", APP_START_ADDR);
+void JumpToApp(uint32_t addr){
+    IAP_DEBUG("JUMP TO APP [0x%08X]\n", addr);
+#if USER_FLASH_LOCK_EN
+    IAP_Flash_lock();
+#endif
     Uart_Send_Complete_Check();
     for(int i=20000;i>0;i--);
-    platform_switch_app(APP_START_ADDR);
+    platform_switch_app(addr);
 }
 
 
@@ -143,8 +117,6 @@ static void JumpToApp(void){
  */
 void IAP_Init(void){
     platform_printf("\n===>This is the BOOT code.\n");
-
-    IAP_Flash_WP_Init();
 
     // IAP_ParamsTest();
 
@@ -162,7 +134,7 @@ void IAP_Init(void){
         if (!IsAppCheckSuccess()){
             BootUpgradeStart();
         } else {
-            JumpToApp();
+            JumpToApp(APP_START_ADDR);
         }
     }
 #endif

@@ -3,6 +3,7 @@
 
 // Erase boot params ???
 #define USER_ERASE_BOOT_PARAM_EN        (0)
+#define USER_FLASH_LOCK_EN              (0)
 
 // Log enable
 #define USER_IAP_MAIN_DEBUG_LOG_EN      (1)

@@ -8,6 +8,7 @@
 
 extern void Uart_Send_Complete_Check(void);
 void IAP_Init(void);
+void JumpToApp(uint32_t addr);
 
 #endif
 

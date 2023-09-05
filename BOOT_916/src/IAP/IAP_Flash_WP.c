@@ -3,9 +3,32 @@
 #include "eflash.h"
 #include "btstack_util.h"
 #include "string.h"
+#include "IAP_UserDef.h"
 
-#define FLASH_WP_SIZE       (FLASH_WP_SIZE_384KB)
+#define BOOT_FLASH_WP_SIZE       (FLASH_WP_SIZE_384KB)
 
+
+#include "rom_tools.h"
+
+typedef void (*rom_void_void)(void);
+typedef void (*rom_FlashSetStatusReg)(uint16_t data);
+typedef uint16_t (*rom_FlashGetStatusReg)(void);
+#define ROM_FlashWaitBusyDown           ((rom_void_void)(0x00000b6d))
+#define ROM_FlashDisableContinuousMode  ((rom_void_void)(0x000007c9))
+#define ROM_FlashEnableContinuousMode   ((rom_void_void)(0x0000080d))
+#define ROM_DCacheFlush                 ((rom_void_void)(0x00000651))
+#define ROM_FlashSetStatusReg  ((rom_FlashSetStatusReg) (0x00000b01))
+#define ROM_FlashGetStatusReg  ((rom_FlashGetStatusReg) (0x0000084d))
+
+
+void flash_read_protection_status(uint8_t *region, uint8_t *reverse_selection){
+    ROM_FlashDisableContinuousMode();
+    uint16_t status = ROM_FlashGetStatusReg();
+    *reverse_selection = ((status>>14)&0x1);
+    *region = (0x1F&(status>>2));
+    ROM_FlashEnableContinuousMode();
+    ROM_FlashWaitBusyDown();
+}
 
 void flash_write_protection_set(flash_wp_size_t wp_size){
     switch((uint16_t)wp_size){
@@ -25,19 +48,29 @@ void flash_write_protection_set(flash_wp_size_t wp_size){
         case FLASH_WP_SIZE_508KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_128, 1); break;
         case FLASH_WP_SIZE_ALL_512KB:   flash_enable_write_protection(FLASH_REGION_ALL, 0);         break;
     }
+    ROM_FlashWaitBusyDown();
 }
 
-
+#if USER_FLASH_LOCK_EN
 void IAP_Flash_lock(void){
-    flash_write_protection_set(FLASH_WP_SIZE);
+    flash_write_protection_set(BOOT_FLASH_WP_SIZE);
+    uint8_t region, reverse;
+    flash_read_protection_status(&region, &reverse);
+    platform_printf("[WP] region3 = 0x%x, reverse = %d\n", region, reverse);
 }
+#endif
 
 void IAP_Flash_Unlock(void){
+    uint8_t region, reverse;
+    flash_read_protection_status(&region, &reverse);
+    platform_printf("[WP] region1 = 0x%x, reverse = %d\n", region, reverse);
     flash_write_protection_set(FLASH_WP_SIZE_NONE);
+    flash_read_protection_status(&region, &reverse);
+    platform_printf("[WP] region2 = 0x%x, reverse = %d\n", region, reverse);
 }
 
 void IAP_Flash_WP_Init(void){
-    IAP_Flash_lock();
+    IAP_Flash_Unlock();
 }
 
 // =============================================================================================================

@@ -11,6 +11,7 @@
 #include "IAP_Params.h"
 #include "IAP_UserDef.h"
 #include "IAP_Flash_WP.h"
+#include "IAP_916.h"
 
 #if USER_IAP_APP_ERROR_LOG_EN
 #define IAP_APP_ERROR(...)	platform_printf(__VA_ARGS__)
@@ -23,9 +24,6 @@
 #else
 #define IAP_APP_DEBUG(...)      
 #endif
-
-// =================================================================================================
-extern void Uart_Send_Complete_Check(void);
 
 // =================================================================================================
 
@@ -115,19 +113,13 @@ static uint8_t IAP_Flash_offsetAddr_valid_check(uint32_t offsetAddr, uint16_t re
 }
 
 
-static void IAP_SwitchToApp(void) {
-    IAP_APP_ERROR("[CMD] JUMP TO APP [0x%08X]\n", IAP_UPGRADE_START_ADDR);
-    Uart_Send_Complete_Check();
-    for(int i=20000;i>0;i--);
-    platform_switch_app(IAP_UPGRADE_START_ADDR);
-}
-
 static void IAP_Reboot_Delay_Timeout_Callback(void){
     platform_reset();
 }
 
 static void IAP_JumpToApp_Delay_Timeout_Callback(void){
-    IAP_SwitchToApp();
+    IAP_APP_ERROR("[CMD] JUMP TO APP [0x%08X]\n", IAP_UPGRADE_START_ADDR);
+    JumpToApp(IAP_UPGRADE_START_ADDR);
 }
 
 // =================================================================================================
@@ -488,9 +480,6 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
     // store header information to flash.
     IAP_APP_DEBUG("TODO : Store header info to flash.\n");
 
-    // UNLOCK FLASH.
-    IAP_Flash_Unlock();
-
     // Init stu
     IAP_CtlInit();
 
@@ -666,8 +655,6 @@ static IAP_APP_ErrCode_t IAP_CMD_Reboot_handler(uint8_t * payload, uint16_t leng
         return IAP_APP_ERR_PARAM;
     }
 
-    IAP_Flash_lock();
-
     platform_set_timer(IAP_Reboot_Delay_Timeout_Callback, (uint32_t)((*delay_ms)*1000/625));
 
     return errCode;
@@ -693,8 +680,6 @@ static IAP_APP_ErrCode_t IAP_CMD_SwitchApp_handler(uint8_t * payload, uint16_t l
         IAP_APP_ERROR("[SA] error: delay_ms=%d > %d\n", (*delay_ms), IAP_CMD_SWITCH_APP_MAX_DELAY_MS);
         return IAP_APP_ERR_PARAM;
     }
-
-    IAP_Flash_lock();
 
     platform_set_timer(IAP_JumpToApp_Delay_Timeout_Callback, (uint32_t)((*delay_ms)*1000/625));
 
