@@ -418,6 +418,16 @@
               <FileType>1</FileType>
               <FilePath>.\src\IAP\IAP_Params.c</FilePath>
             </File>
+            <File>
+              <FileName>IAP_UserDef.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\src\IAP\IAP_UserDef.h</FilePath>
+            </File>
+            <File>
+              <FileName>IAP_FLASH_MAP.H</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\src\IAP\IAP_FLASH_MAP.H</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

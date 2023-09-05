@@ -275,7 +275,7 @@
               </OCR_RVCT3>
               <OCR_RVCT4>
                 <Type>1</Type>
-                <StartAddress>0x206e000</StartAddress>
+                <StartAddress>0x2036000</StartAddress>
                 <Size>0x12000</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
@@ -402,6 +402,16 @@
               <FileName>IAP_916.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\src\IAP\IAP_916.c</FilePath>
+            </File>
+            <File>
+              <FileName>IAP_FLASH_MAP.H</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\src\IAP\IAP_FLASH_MAP.H</FilePath>
+            </File>
+            <File>
+              <FileName>IAP_UserDef.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\src\IAP\IAP_UserDef.h</FilePath>
             </File>
           </Files>
         </Group>
