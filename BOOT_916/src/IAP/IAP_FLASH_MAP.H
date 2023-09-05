@@ -5,9 +5,9 @@
 
 #define PLATFORM_START_ADDR         (uint32_t)(0x2002000)
 #define BOOT_START_ADDR             (uint32_t)(0x2028000)
-#define BOOT_PARAM_ADDR             (uint32_t)(0x2034000)
-#define APP_START_ADDR              (uint32_t)(0x2036000)
-#define RSVD_START_ADDR             (uint32_t)(0x2046000)
+#define BOOT_PARAM_ADDR             (uint32_t)(0x202F000)
+#define APP_START_ADDR              (uint32_t)(0x2031000)
+#define RSVD_START_ADDR             (uint32_t)(0x2040000)
 #define APP_PARAM_ADDR              (uint32_t)(0x207E000)
 #define FLASH_TOP_ADDR              (uint32_t)(0x2080000)
 

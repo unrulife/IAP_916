@@ -10,6 +10,7 @@
 #include "rom_tools.h"
 #include "IAP_Params.h"
 #include "IAP_UserDef.h"
+#include "IAP_Flash_WP.h"
 
 #if USER_IAP_APP_ERROR_LOG_EN
 #define IAP_APP_ERROR(...)	platform_printf(__VA_ARGS__)
@@ -487,6 +488,9 @@ static IAP_APP_ErrCode_t IAP_CMD_Start_handler(uint8_t * payload, uint16_t lengt
     // store header information to flash.
     IAP_APP_DEBUG("TODO : Store header info to flash.\n");
 
+    // UNLOCK FLASH.
+    IAP_Flash_Unlock();
+
     // Init stu
     IAP_CtlInit();
 
@@ -662,6 +666,8 @@ static IAP_APP_ErrCode_t IAP_CMD_Reboot_handler(uint8_t * payload, uint16_t leng
         return IAP_APP_ERR_PARAM;
     }
 
+    IAP_Flash_lock();
+
     platform_set_timer(IAP_Reboot_Delay_Timeout_Callback, (uint32_t)((*delay_ms)*1000/625));
 
     return errCode;
@@ -687,6 +693,8 @@ static IAP_APP_ErrCode_t IAP_CMD_SwitchApp_handler(uint8_t * payload, uint16_t l
         IAP_APP_ERROR("[SA] error: delay_ms=%d > %d\n", (*delay_ms), IAP_CMD_SWITCH_APP_MAX_DELAY_MS);
         return IAP_APP_ERR_PARAM;
     }
+
+    IAP_Flash_lock();
 
     platform_set_timer(IAP_JumpToApp_Delay_Timeout_Callback, (uint32_t)((*delay_ms)*1000/625));
 

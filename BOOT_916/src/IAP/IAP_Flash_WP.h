@@ -6,25 +6,29 @@
 #include "eflash.h"
 #include "rom_tools.h"
 
-#if (INGCHIPS_FAMILY == INGCHIPS_FAMILY_918)
-#elif (INGCHIPS_FAMILY == INGCHIPS_FAMILY_916)
+typedef enum
+{
+    FLASH_WP_SIZE_NONE,
+    FLASH_WP_SIZE_4KB,
+    FLASH_WP_SIZE_8KB,
+    FLASH_WP_SIZE_16KB,
+    FLASH_WP_SIZE_32KB,
+    FLASH_WP_SIZE_64KB,
+    FLASH_WP_SIZE_128KB,
+    FLASH_WP_SIZE_256KB,
+    FLASH_WP_SIZE_384KB,
+    FLASH_WP_SIZE_448KB,
+    FLASH_WP_SIZE_480KB,
+    FLASH_WP_SIZE_496KB,
+    FLASH_WP_SIZE_504KB,
+    FLASH_WP_SIZE_508KB,
+    FLASH_WP_SIZE_ALL_512KB,
 
-// Register offset.
-#define FLASH_REG_WP_OFFSET         (2)
+} flash_wp_size_t;
 
-// Write protect type.
-#define FLASH_WP_TYPE_DIS           (0x00)
-#define FLASH_WP_TYPE_EN_ALL        (0x1F)
-
-
-typedef void (*rom_FlashSetStatusReg)(uint16_t data);
-typedef uint16_t (*rom_FlashGetStatusReg)(void);
-
-#define ROM_FlashSetStatusReg  ((rom_FlashSetStatusReg) (0x00000b01))
-#define ROM_FlashGetStatusReg  ((rom_FlashGetStatusReg) (0x0000084d))
-
-#endif
-
+void flash_write_protection_set(flash_wp_size_t wp_size);
+void IAP_Flash_lock(void);
+void IAP_Flash_Unlock(void);
 void IAP_Flash_WP_Init(void);
 
 #endif
