@@ -52,7 +52,7 @@
  "proj_dir": "D:\\002-GITHUB\\IAP_916\\BOOT_916",
  "heap_size": 0,
  "power_saving": false,
- "secondary": false,
+ "secondary": true,
  "bundle": "extension",
  "app_rom_size": "352256",
  "app_rom_addr": "33726464",

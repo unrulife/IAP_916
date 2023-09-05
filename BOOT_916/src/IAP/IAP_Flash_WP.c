@@ -4,27 +4,27 @@
 #include "btstack_util.h"
 #include "string.h"
 
-#define FLASH_WP_SIZE       (FLASH_WP_SIZE_256KB)
+#define FLASH_WP_SIZE       (FLASH_WP_SIZE_384KB)
 
 
 void flash_write_protection_set(flash_wp_size_t wp_size){
-    // switch((uint16_t)wp_size){
-    //     case FLASH_WP_SIZE_NONE:        flash_enable_write_protection(FLASH_REGION_NONE, 0);        break;
-    //     case FLASH_WP_SIZE_4KB:         flash_enable_write_protection(FLASH_REGION_LOWER_1_128, 0); break;
-    //     case FLASH_WP_SIZE_8KB:         flash_enable_write_protection(FLASH_REGION_LOWER_1_64, 0);  break;
-    //     case FLASH_WP_SIZE_16KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_32, 0);  break;
-    //     case FLASH_WP_SIZE_32KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_16, 0);  break;
-    //     case FLASH_WP_SIZE_64KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_8, 0);   break;
-    //     case FLASH_WP_SIZE_128KB:       flash_enable_write_protection(FLASH_REGION_LOWER_1_4, 0);   break;
-    //     case FLASH_WP_SIZE_256KB:       flash_enable_write_protection(FLASH_REGION_LOWER_1_2, 0);   break;
-    //     case FLASH_WP_SIZE_384KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_4, 1);   break;
-    //     case FLASH_WP_SIZE_448KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_8, 1);   break;
-    //     case FLASH_WP_SIZE_480KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_16, 1);  break;
-    //     case FLASH_WP_SIZE_496KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_32, 1);  break;
-    //     case FLASH_WP_SIZE_504KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_64, 1);  break;
-    //     case FLASH_WP_SIZE_508KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_128, 1); break;
-    //     case FLASH_WP_SIZE_ALL_512KB:   flash_enable_write_protection(FLASH_REGION_ALL, 0);         break;
-    // }
+    switch((uint16_t)wp_size){
+        case FLASH_WP_SIZE_NONE:        flash_enable_write_protection(FLASH_REGION_NONE, 0);        break;
+        case FLASH_WP_SIZE_4KB:         flash_enable_write_protection(FLASH_REGION_LOWER_1_128, 0); break;
+        case FLASH_WP_SIZE_8KB:         flash_enable_write_protection(FLASH_REGION_LOWER_1_64, 0);  break;
+        case FLASH_WP_SIZE_16KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_32, 0);  break;
+        case FLASH_WP_SIZE_32KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_16, 0);  break;
+        case FLASH_WP_SIZE_64KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_8, 0);   break;
+        case FLASH_WP_SIZE_128KB:       flash_enable_write_protection(FLASH_REGION_LOWER_1_4, 0);   break;
+        case FLASH_WP_SIZE_256KB:       flash_enable_write_protection(FLASH_REGION_LOWER_1_2, 0);   break;
+        case FLASH_WP_SIZE_384KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_4, 1);   break;
+        case FLASH_WP_SIZE_448KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_8, 1);   break;
+        case FLASH_WP_SIZE_480KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_16, 1);  break;
+        case FLASH_WP_SIZE_496KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_32, 1);  break;
+        case FLASH_WP_SIZE_504KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_64, 1);  break;
+        case FLASH_WP_SIZE_508KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_128, 1); break;
+        case FLASH_WP_SIZE_ALL_512KB:   flash_enable_write_protection(FLASH_REGION_ALL, 0);         break;
+    }
 }
 
 
