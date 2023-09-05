@@ -12,6 +12,7 @@
 #include "IAP_Params.h"
 #include "stdbool.h"
 #include "rom_tools.h"
+#include "IAP_Flash_WP.h"
 
 
 #if 1
@@ -143,8 +144,11 @@ static void JumpToApp(void){
 void IAP_Init(void){
     platform_printf("\n===>This is the BOOT code.\n");
 
+    IAP_Flash_WP_Init();
+
     // IAP_ParamsTest();
 
+#if 0
     BootInit();
     if (IsResetWhenUpgrading()){
         BootUpgradeStart();
@@ -161,6 +165,7 @@ void IAP_Init(void){
             JumpToApp();
         }
     }
+#endif
 
     // IAP_Run();
 

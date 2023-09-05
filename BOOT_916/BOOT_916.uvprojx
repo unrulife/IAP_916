@@ -428,6 +428,11 @@
               <FileType>5</FileType>
               <FilePath>.\src\IAP\IAP_FLASH_MAP.H</FilePath>
             </File>
+            <File>
+              <FileName>IAP_Flash_WP.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\IAP\IAP_Flash_WP.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
