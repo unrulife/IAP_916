@@ -148,7 +148,7 @@ void IAP_Init(void){
 
     // IAP_ParamsTest();
 
-#if 0
+#if 1
     BootInit();
     if (IsResetWhenUpgrading()){
         BootUpgradeStart();
