@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>.\src\IAP;sdk/bundles/extension/inc;sdk/bundles/extension/inc/os;sdk/src/BSP;sdk/src/FWlib;sdk/src/StartUP/ing916;sdk/src/Tools;sdk/src</IncludePath>
+              <IncludePath>.\src\IAP_BSP;.\src\IAP;sdk/bundles/extension/inc;sdk/bundles/extension/inc/os;sdk/src/BSP;sdk/src/FWlib;sdk/src/StartUP/ing916;sdk/src/Tools;sdk/src</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -431,17 +431,22 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>IAP_BSP</GroupName>
+          <Files>
+            <File>
+              <FileName>bsp_usb_hid_kb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\IAP_BSP\bsp_usb_hid_kb.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>BSP</GroupName>
           <Files>
             <File>
               <FileName>eflash.c</FileName>
               <FileType>1</FileType>
               <FilePath>sdk\src\BSP\eflash.c</FilePath>
-            </File>
-            <File>
-              <FileName>bsp_usb.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\sdk\src\BSP\bsp_usb.c</FilePath>
             </File>
           </Files>
         </Group>

@@ -14,6 +14,7 @@
 #include "rom_tools.h"
 #include "IAP_Flash_WP.h"
 #include "IAP_UserDef.h"
+#include "crc16.h"
 
 
 #if 1
@@ -84,13 +85,13 @@ static bool IsAppCheckSuccess(void){
         return 1; // check info not exist, jump directly.
     }
     // checksum header info.
-    if (getCRC((uint8_t *)&upgrade_info->header, sizeof(IAP_HeaderTypedef)) != upgrade_info->crcVal){
+    if (getCRC16((uint8_t *)&upgrade_info->header, sizeof(IAP_HeaderTypedef)) != upgrade_info->crcVal){
         IAP_ERROR("header check error.\n");
         return 0; // FAIL.
     }
     // check app code.
     uint8_t * pBinData   = (uint8_t *)APP_START_ADDR;
-    uint16_t allBinCRC = getCRC(pBinData, upgrade_info->allBinSize);
+    uint16_t allBinCRC = getCRC16(pBinData, upgrade_info->allBinSize);
     IAP_DEBUG("allBinSize: 0x%X\n", upgrade_info->allBinSize);
     if(allBinCRC != upgrade_info->header.check.CRC){
         IAP_ERROR("[BOOT] error: =====>CRC CHECK: calc[0x%04x], recv[0x%04x]\n", allBinCRC, upgrade_info->header.check.CRC);
@@ -120,7 +121,6 @@ void IAP_Init(void){
 
     // IAP_ParamsTest();
 
-#if 1
     BootInit();
     if (IsResetWhenUpgrading()){
         BootUpgradeStart();
@@ -131,13 +131,16 @@ void IAP_Init(void){
     } else if (!IsAppCodeExist()){
         BootUpgradeStart();
     } else {
+    #if USER_APP_CODE_CHECK_CRC_EN
         if (!IsAppCheckSuccess()){
             BootUpgradeStart();
         } else {
             JumpToApp(APP_START_ADDR);
         }
+    #else 
+        JumpToApp(APP_START_ADDR);
+    #endif
     }
-#endif
 
     // IAP_Run();
 

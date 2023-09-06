@@ -10,6 +10,7 @@
 #include "rom_tools.h"
 #include "IAP_Params.h"
 #include "IAP_UserDef.h"
+#include "crc16.h"
 
 #if USER_IAP_PARAM_ERROR_LOG_EN
 #define IAP_PARAM_ERROR(...)	platform_printf(__VA_ARGS__)
@@ -165,11 +166,6 @@ static void IAP_Params_VersionInfoUpdates(uint8_t TYPE, uint8_t *data, uint16_t 
     }
 }
 
-
-uint16_t getCRC(uint8_t *buffer, uint16_t len){
-    return crc(buffer, len);
-}
-
 void IAP_Params_update_Header_ToFlash(IAP_HeaderTypedef * header){
     IAP_PARAM_DEBUG("update header info to boot params flash.\n");
     // erase upgrade info area.
@@ -177,7 +173,7 @@ void IAP_Params_update_Header_ToFlash(IAP_HeaderTypedef * header){
     // write header.
     IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_HEADER, (uint8_t *)header, sizeof(IAP_HeaderTypedef));
     // write crc.
-    upgradeInfo.crcVal = getCRC((uint8_t *)header, sizeof(IAP_HeaderTypedef));
+    upgradeInfo.crcVal = getCRC16((uint8_t *)header, sizeof(IAP_HeaderTypedef));
     IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_CRC_VAL, (uint8_t *)&upgradeInfo.crcVal, 2);
     // update upgrade flag to updating status. [FFAA]
     upgradeInfo.upgrade_sta = 0x55AA;
@@ -197,7 +193,7 @@ static void IAP_Params_update_versionInfo_ToFlash(void){
     memcpy((uint8_t *)&versionInfo.verInfo, (uint8_t *)&upgradeInfo.header.verInfo, sizeof(IAP_AppVerInfoTypedef));
     IAP_Params_VersionInfoUpdates(IAP_PARAMS_VER_VERSION, (uint8_t *)&versionInfo.verInfo, sizeof(IAP_AppVerInfoTypedef));
     // write crc.
-    versionInfo.crcVal = getCRC((uint8_t *)&versionInfo.verInfo, sizeof(IAP_AppVerInfoTypedef));
+    versionInfo.crcVal = getCRC16((uint8_t *)&versionInfo.verInfo, sizeof(IAP_AppVerInfoTypedef));
     IAP_PARAM_DEBUG("wr crc: 0x%04X.\n", versionInfo.crcVal);
     IAP_Params_VersionInfoUpdates(IAP_PARAMS_VER_CRC, (uint8_t *)&versionInfo.crcVal, 2);
     // write flag.

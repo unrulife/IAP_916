@@ -2,11 +2,11 @@
 #include "platform_api.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "bsp_usb.h"
 #include "eflash.h"
 #include "rom_tools.h"
 #include "string.h"
 #include "IAP_UserDef.h"
+#include "bsp_usb_hid_kb.h"
 
 // IAP INFO
 const char iap_chip[]   = USER_DEF_CHIP_ID;         // max = 15bytes.

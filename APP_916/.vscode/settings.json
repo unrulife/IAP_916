@@ -6,6 +6,7 @@
     },
     "files.associations": {
         "*.cgen": "c",
-        "iap_916.h": "c"
+        "iap_916.h": "c",
+        "bsp_usb.h": "c"
     }
 }

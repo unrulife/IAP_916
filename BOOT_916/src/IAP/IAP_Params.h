@@ -68,7 +68,6 @@ IAP_FlashVerInfo_t * getVersionInfo(void);
 void IAP_ParamsInit(void);
 void IAP_Params_update_Header_ToFlash(IAP_HeaderTypedef * header);
 void IAP_Params_update_AllBinSize_ToFlash(uint32_t size);
-uint16_t getCRC(uint8_t *buffer, uint16_t len);
 
 // ------------------------
 void IAP_ParamsTest(void);

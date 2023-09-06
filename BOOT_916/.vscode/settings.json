@@ -14,7 +14,8 @@
         "iap_params.h": "c",
         "eflash.h": "c",
         "iap_userdef.h": "c",
-        "rom_tools.h": "c"
+        "rom_tools.h": "c",
+        "crc16.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

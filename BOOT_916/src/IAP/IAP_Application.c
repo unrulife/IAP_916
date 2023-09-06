@@ -12,6 +12,7 @@
 #include "IAP_UserDef.h"
 #include "IAP_Flash_WP.h"
 #include "IAP_916.h"
+#include "crc16.h"
 
 #if USER_IAP_APP_ERROR_LOG_EN
 #define IAP_APP_ERROR(...)	platform_printf(__VA_ARGS__)
@@ -127,10 +128,6 @@ uint8_t * IAP_GetAppBuffer(void){
     return (uint8_t *)&appBuffer[0];
 }
 
-static uint16_t IAP_Get_CRC(uint8_t *buffer, uint16_t len){
-    return crc(buffer, len);
-}
-
 // 只是初始化指针，并不会改变appBuffer的值，所以不影响应用数据解析。
 static void IAP_APP_PreparePayloadDataStart(void){
     cmdCtl.payload  = IAP_GetAppBuffer() + IAP_APP_SEND_CMD_PAYLOAD_OFFSET;
@@ -171,7 +168,7 @@ static void IAP_APP_SendACK(uint8_t error){
     ACK->length   = cmdCtl.payload_size;
     cmdCtl.size   = cmdCtl.payload_size + IAP_APP_SEND_CMD_MIN_SIZE;
     uint16_t *CRC = (uint16_t *)&cmdCtl.buffer[cmdCtl.size-2];
-    *CRC  = IAP_Get_CRC((uint8_t *)cmdCtl.buffer, cmdCtl.size-2);
+    *CRC  = getCRC16((uint8_t *)cmdCtl.buffer, cmdCtl.size-2);
 
 #if USER_IAP_APP_DEBUG_LOG_EN
     IAP_APP_DEBUG("APP SEND ACK[%d]: ", cmdCtl.size);
@@ -184,8 +181,8 @@ static void IAP_APP_SendACK(uint8_t error){
 // calc crc.
 static uint8_t IsAppCrcValid(uint8_t *data, uint16_t len){
     uint16_t *CRC = (uint16_t *)&data[len-2];
-    if(*CRC != IAP_Get_CRC(data, len-2)){
-        IAP_APP_ERROR("[CMD] error: CRC: Calc[0x%04X], Recv[0x%04X]\n", IAP_Get_CRC(data, len-2), *CRC);
+    if(*CRC != getCRC16(data, len-2)){
+        IAP_APP_ERROR("[CMD] error: CRC: Calc[0x%04X], Recv[0x%04X]\n", getCRC16(data, len-2), *CRC);
         return IAP_INVALID;
     } else {
         IAP_APP_DEBUG("[CMD] CRC:[0x%04X]\n", *CRC);
@@ -558,7 +555,7 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
         // check CRC.
         uint32_t allBinSize = (cmdCtl.nextOffsetAddr + currBlockSize);
         uint8_t * pBinData   = (uint8_t *)IAP_Flash_StartAddr_Get(0);
-        uint16_t allBinCRC = IAP_Get_CRC(pBinData, allBinSize);
+        uint16_t allBinCRC = getCRC16(pBinData, allBinSize);
         IAP_APP_DEBUG("allBinSize: 0x%X\n", allBinSize);
         // iap_switch_big_endian_u16(&allBinCRC);
         if(allBinCRC != cmdCtl.chk.val.CRC){
