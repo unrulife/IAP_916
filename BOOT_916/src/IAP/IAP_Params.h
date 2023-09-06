@@ -32,25 +32,17 @@
 #define IAP_PARAMS_HEADER                   1
 #define IAP_PARAMS_ALL_BIN_SIZE             2
 #define IAP_PARAMS_CRC_VAL                  3
-#define IAP_PARAMS_UPGRADE_FLAG_LOW         4
-#define IAP_PARAMS_UPGRADE_FLAG_HIGH        5
+#define IAP_PARAMS_UPGRADE_FLAG             6
 
 // upgrade info OFFSET
 #define IAP_PARAMS_HEADER_OFFSET                8
 #define IAP_PARAMS_ALL_BIN_SIZE_OFFSET          4
 #define IAP_PARAMS_CRC_VAL_OFFSET               2
-#define IAP_PARAMS_UPGRADE_FLAG_LOW_OFFSET      0
-#define IAP_PARAMS_UPGRADE_FLAG_HIGH_OFFSET     1
+#define IAP_PARAMS_UPGRADE_FLAG_OFFSET          0
 
 // upgrade info.
 typedef struct __attribute__((packed)){
-    union{
-        uint16_t upgrade_sta;
-        struct{
-            uint8_t upgrade_sta_low; //first storage byte in flash.
-            uint8_t upgrade_sta_high;
-        };
-    };
+    uint16_t upgrade_sta;
     uint16_t crcVal;
     uint32_t allBinSize;
     IAP_HeaderTypedef header;

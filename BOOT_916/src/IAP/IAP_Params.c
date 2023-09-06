@@ -90,8 +90,6 @@ static void PrintUpgradeInfo(void){
 #if USER_IAP_PARAM_DEBUG_LOG_EN
     IAP_PARAM_DEBUG("\n------------------------------------\n");
     IAP_PARAM_DEBUG("upgrade_sta = 0x%04X\n", upgradeInfo.upgrade_sta);
-    IAP_PARAM_DEBUG("upgrade_sta1 = 0x%02X\n", upgradeInfo.upgrade_sta_low);
-    IAP_PARAM_DEBUG("upgrade_sta2 = 0x%02X\n", upgradeInfo.upgrade_sta_high);
     IAP_PARAM_DEBUG("crcVal = 0x%04X\n", upgradeInfo.crcVal);
     IAP_PARAM_DEBUG("allBinSize = 0x%04X\n", upgradeInfo.allBinSize);
     IAP_PARAM_DEBUG("header: \n");
@@ -143,11 +141,8 @@ static void IAP_Params_UpgradeInfoUpdates(uint8_t TYPE, uint8_t *data, uint16_t 
         case IAP_PARAMS_CRC_VAL:
             IAP_FlashUpgradeInfo_UpdateToFlash(IAP_PARAMS_CRC_VAL_OFFSET, data, len);
             break;
-        case IAP_PARAMS_UPGRADE_FLAG_LOW:
-            IAP_FlashUpgradeInfo_UpdateToFlash(IAP_PARAMS_UPGRADE_FLAG_LOW_OFFSET, data, len);
-            break;
-        case IAP_PARAMS_UPGRADE_FLAG_HIGH:
-            IAP_FlashUpgradeInfo_UpdateToFlash(IAP_PARAMS_UPGRADE_FLAG_HIGH_OFFSET, data, len);
+        case IAP_PARAMS_UPGRADE_FLAG:
+            IAP_FlashUpgradeInfo_UpdateToFlash(IAP_PARAMS_UPGRADE_FLAG_OFFSET, data, len);
             break;
     }
 }
@@ -174,10 +169,10 @@ void IAP_Params_update_Header_ToFlash(IAP_HeaderTypedef * header){
     IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_HEADER, (uint8_t *)header, sizeof(IAP_HeaderTypedef));
     // write crc.
     upgradeInfo.crcVal = getCRC16((uint8_t *)header, sizeof(IAP_HeaderTypedef));
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_CRC_VAL, (uint8_t *)&upgradeInfo.crcVal, 2);
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_CRC_VAL, (uint8_t *)&upgradeInfo.crcVal, sizeof(upgradeInfo.crcVal));
     // update upgrade flag to updating status. [FFAA]
-    upgradeInfo.upgrade_sta = 0x55AA;
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG_LOW, (uint8_t *)&upgradeInfo.upgrade_sta_low, 1);
+    upgradeInfo.upgrade_sta = IAP_UPGRADE_STA_FLAG_RUNNING;
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG, (uint8_t *)&upgradeInfo.upgrade_sta, sizeof(upgradeInfo.upgrade_sta));
     // read info.
     IAP_FlashUpgradeInfo_ReadToStu();
     PrintUpgradeInfo();
@@ -195,10 +190,10 @@ static void IAP_Params_update_versionInfo_ToFlash(void){
     // write crc.
     versionInfo.crcVal = getCRC16((uint8_t *)&versionInfo.verInfo, sizeof(IAP_AppVerInfoTypedef));
     IAP_PARAM_DEBUG("wr crc: 0x%04X.\n", versionInfo.crcVal);
-    IAP_Params_VersionInfoUpdates(IAP_PARAMS_VER_CRC, (uint8_t *)&versionInfo.crcVal, 2);
+    IAP_Params_VersionInfoUpdates(IAP_PARAMS_VER_CRC, (uint8_t *)&versionInfo.crcVal, sizeof(versionInfo.crcVal));
     // write flag.
-    versionInfo.ver_flag = 0x55AA;
-    IAP_Params_VersionInfoUpdates(IAP_PARAMS_VER_FLAG, (uint8_t *)&versionInfo.ver_flag, 2);
+    versionInfo.ver_flag = IAP_VER_FLAG_INITED;
+    IAP_Params_VersionInfoUpdates(IAP_PARAMS_VER_FLAG, (uint8_t *)&versionInfo.ver_flag, sizeof(versionInfo.ver_flag));
     // read version info.
     IAP_FlashVersionInfo_ReadToStu();
 }
@@ -207,12 +202,12 @@ void IAP_Params_update_AllBinSize_ToFlash(uint32_t size){
     IAP_PARAM_DEBUG("update allBinSize to boot params flash.\n");
     // write all bin size
     upgradeInfo.allBinSize = size;
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_ALL_BIN_SIZE, (uint8_t *)&upgradeInfo.allBinSize, 4);
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_ALL_BIN_SIZE, (uint8_t *)&upgradeInfo.allBinSize, sizeof(upgradeInfo.allBinSize));
     // update version information.
     IAP_Params_update_versionInfo_ToFlash();
     // update upgrade flag to complete status. [55AA]
-    upgradeInfo.upgrade_sta = 0x55AA; 
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG_HIGH, (uint8_t *)&upgradeInfo.upgrade_sta_high, 1);
+    upgradeInfo.upgrade_sta = IAP_UPGRADE_STA_FLAG_COMPLETE; 
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG, (uint8_t *)&upgradeInfo.upgrade_sta, sizeof(upgradeInfo.upgrade_sta));
     // read info.
     IAP_FlashUpgradeInfo_ReadToStu();
     PrintUpgradeInfo();
@@ -224,40 +219,35 @@ void IAP_ParamsTest(void){
 
     // upgrade info.
     IAP_FlashUpgradeInfo_Erase();
+    // read.
+    IAP_FlashUpgradeInfo_ReadToStu();
+    PrintUpgradeInfo();
 
+    // wr.
+    upgradeInfo.upgrade_sta = 0xFFAA;
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG, (uint8_t *)&upgradeInfo.upgrade_sta, sizeof(upgradeInfo.upgrade_sta));
     // read.
     IAP_FlashUpgradeInfo_ReadToStu();
     PrintUpgradeInfo();
 
     // wr.
     upgradeInfo.upgrade_sta = 0x55AA;
-    // upgradeInfo.crcVal = 0x1234;
-    PrintUpgradeInfo();
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG_LOW, (uint8_t *)&upgradeInfo.upgrade_sta_low, 1);
-
-    // read.
-    IAP_FlashUpgradeInfo_ReadToStu();
-    PrintUpgradeInfo();
-
-    // wr.
-    upgradeInfo.upgrade_sta = 0x55AA;
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG_HIGH, (uint8_t *)&upgradeInfo.upgrade_sta_high, 1);
-
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_UPGRADE_FLAG, (uint8_t *)&upgradeInfo.upgrade_sta, sizeof(upgradeInfo.upgrade_sta));
     // read.
     IAP_FlashUpgradeInfo_ReadToStu();
     PrintUpgradeInfo();
 
     // wr.
     upgradeInfo.crcVal = 0x1122;
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_CRC_VAL, (uint8_t *)&upgradeInfo.crcVal, 2);
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_CRC_VAL, (uint8_t *)&upgradeInfo.crcVal, sizeof(upgradeInfo.crcVal));
 
     // read.
     IAP_FlashUpgradeInfo_ReadToStu();
     PrintUpgradeInfo();
 
     // wr.
-    upgradeInfo.allBinSize = 0x5678;
-    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_ALL_BIN_SIZE, (uint8_t *)&upgradeInfo.allBinSize, 4);
+    upgradeInfo.allBinSize = 0x12345678;
+    IAP_Params_UpgradeInfoUpdates(IAP_PARAMS_ALL_BIN_SIZE, (uint8_t *)&upgradeInfo.allBinSize, sizeof(upgradeInfo.allBinSize));
 
     // read.
     IAP_FlashUpgradeInfo_ReadToStu();

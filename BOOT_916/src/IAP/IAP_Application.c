@@ -556,9 +556,9 @@ static IAP_APP_ErrCode_t IAP_CMD_FlashWrite_handler(uint8_t * payload, uint16_t 
         uint32_t allBinSize = (cmdCtl.nextOffsetAddr + currBlockSize);
         uint8_t * pBinData   = (uint8_t *)IAP_Flash_StartAddr_Get(0);
         uint16_t allBinCRC = getCRC16(pBinData, allBinSize);
-        IAP_APP_DEBUG("allBinSize: 0x%X\n", allBinSize);
         // iap_switch_big_endian_u16(&allBinCRC);
         if(allBinCRC != cmdCtl.chk.val.CRC){
+            IAP_APP_ERROR("allBinSize: 0x%X\n", allBinSize);
             IAP_APP_ERROR("[WR] error: =====>CRC CHECK: calc[0x%04x], recv[0x%04x]\n", allBinCRC, cmdCtl.chk.val.CRC);
             return IAP_APP_ERR_CRC;
         } else {

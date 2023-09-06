@@ -131,15 +131,15 @@ void IAP_Init(void){
     } else if (!IsAppCodeExist()){
         BootUpgradeStart();
     } else {
-    #if USER_APP_CODE_CHECK_CRC_EN
+#if USER_APP_CODE_CHECK_CRC_EN
         if (!IsAppCheckSuccess()){
             BootUpgradeStart();
         } else {
             JumpToApp(APP_START_ADDR);
         }
-    #else 
+#else 
         JumpToApp(APP_START_ADDR);
-    #endif
+#endif
     }
 
     // IAP_Run();
