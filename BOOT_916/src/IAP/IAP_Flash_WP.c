@@ -5,7 +5,9 @@
 #include "string.h"
 #include "IAP_UserDef.h"
 
+#if USER_FLASH_LOCK_EN
 #define BOOT_FLASH_WP_SIZE       (FLASH_WP_SIZE_384KB)
+#endif
 
 
 #include "rom_tools.h"
@@ -21,39 +23,56 @@ typedef uint16_t (*rom_FlashGetStatusReg)(void);
 #define ROM_FlashGetStatusReg  ((rom_FlashGetStatusReg) (0x0000084d))
 
 
-void flash_read_protection_status(uint8_t *region, uint8_t *reverse_selection){
+static void flash_read_protection_status(uint8_t *region, uint8_t *reverse_selection){
     ROM_FlashDisableContinuousMode();
     uint16_t status = ROM_FlashGetStatusReg();
     *reverse_selection = ((status>>14)&0x1);
     *region = (0x1F&(status>>2));
     ROM_FlashEnableContinuousMode();
-    ROM_FlashWaitBusyDown();
 }
+
+static void flash_write_protection_config(flash_region_t region, uint8_t reverse_selection){
+    ROM_FlashDisableContinuousMode();
+    uint16_t status_old = ROM_FlashGetStatusReg();
+    uint16_t status_new = status_old;
+    status_new &= ~((1ul << 14) | (0x1ful << 2));
+    status_new |= (uint16_t)reverse_selection << 14 | ((uint16_t)region << 2);
+    if(status_old != status_new){
+        __disable_irq();
+        ROM_FlashSetStatusReg(status_new); // ~8.1ms
+        __enable_irq();
+    }
+    ROM_FlashEnableContinuousMode();
+}
+
+#define FLASH_WP_CONFIG     flash_write_protection_config
+// #define FLASH_WP_CONFIG     flash_enable_write_protection
 
 void flash_write_protection_set(flash_wp_size_t wp_size){
     switch((uint16_t)wp_size){
-        case FLASH_WP_SIZE_NONE:        flash_enable_write_protection(FLASH_REGION_NONE, 0);        break;
-        case FLASH_WP_SIZE_4KB:         flash_enable_write_protection(FLASH_REGION_LOWER_1_128, 0); break;
-        case FLASH_WP_SIZE_8KB:         flash_enable_write_protection(FLASH_REGION_LOWER_1_64, 0);  break;
-        case FLASH_WP_SIZE_16KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_32, 0);  break;
-        case FLASH_WP_SIZE_32KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_16, 0);  break;
-        case FLASH_WP_SIZE_64KB:        flash_enable_write_protection(FLASH_REGION_LOWER_1_8, 0);   break;
-        case FLASH_WP_SIZE_128KB:       flash_enable_write_protection(FLASH_REGION_LOWER_1_4, 0);   break;
-        case FLASH_WP_SIZE_256KB:       flash_enable_write_protection(FLASH_REGION_LOWER_1_2, 0);   break;
-        case FLASH_WP_SIZE_384KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_4, 1);   break;
-        case FLASH_WP_SIZE_448KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_8, 1);   break;
-        case FLASH_WP_SIZE_480KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_16, 1);  break;
-        case FLASH_WP_SIZE_496KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_32, 1);  break;
-        case FLASH_WP_SIZE_504KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_64, 1);  break;
-        case FLASH_WP_SIZE_508KB:       flash_enable_write_protection(FLASH_REGION_UPPER_1_128, 1); break;
-        case FLASH_WP_SIZE_ALL_512KB:   flash_enable_write_protection(FLASH_REGION_ALL, 0);         break;
+        case FLASH_WP_SIZE_NONE:        FLASH_WP_CONFIG(FLASH_REGION_NONE, 0);        break;
+        case FLASH_WP_SIZE_4KB:         FLASH_WP_CONFIG(FLASH_REGION_LOWER_1_128, 0); break;
+        case FLASH_WP_SIZE_8KB:         FLASH_WP_CONFIG(FLASH_REGION_LOWER_1_64, 0);  break;
+        case FLASH_WP_SIZE_16KB:        FLASH_WP_CONFIG(FLASH_REGION_LOWER_1_32, 0);  break;
+        case FLASH_WP_SIZE_32KB:        FLASH_WP_CONFIG(FLASH_REGION_LOWER_1_16, 0);  break;
+        case FLASH_WP_SIZE_64KB:        FLASH_WP_CONFIG(FLASH_REGION_LOWER_1_8, 0);   break;
+        case FLASH_WP_SIZE_128KB:       FLASH_WP_CONFIG(FLASH_REGION_LOWER_1_4, 0);   break;
+        case FLASH_WP_SIZE_256KB:       FLASH_WP_CONFIG(FLASH_REGION_LOWER_1_2, 0);   break;
+        case FLASH_WP_SIZE_384KB:       FLASH_WP_CONFIG(FLASH_REGION_UPPER_1_4, 1);   break;
+        case FLASH_WP_SIZE_448KB:       FLASH_WP_CONFIG(FLASH_REGION_UPPER_1_8, 1);   break;
+        case FLASH_WP_SIZE_480KB:       FLASH_WP_CONFIG(FLASH_REGION_UPPER_1_16, 1);  break;
+        case FLASH_WP_SIZE_496KB:       FLASH_WP_CONFIG(FLASH_REGION_UPPER_1_32, 1);  break;
+        case FLASH_WP_SIZE_504KB:       FLASH_WP_CONFIG(FLASH_REGION_UPPER_1_64, 1);  break;
+        case FLASH_WP_SIZE_508KB:       FLASH_WP_CONFIG(FLASH_REGION_UPPER_1_128, 1); break;
+        case FLASH_WP_SIZE_ALL_512KB:   FLASH_WP_CONFIG(FLASH_REGION_ALL, 0);         break;
     }
-    ROM_FlashWaitBusyDown();
 }
 
 #if USER_FLASH_LOCK_EN
 void IAP_Flash_lock(void){
+    // platform_printf("[WP] lock enter\n");
     flash_write_protection_set(BOOT_FLASH_WP_SIZE);
+    // platform_printf("[WP] lock9 over\n");
     uint8_t region, reverse;
     flash_read_protection_status(&region, &reverse);
     platform_printf("[WP] region3 = 0x%x, reverse = %d\n", region, reverse);
