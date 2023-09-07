@@ -132,6 +132,7 @@ static void APP_Task(void *pvParameters){
     static int flag = 10;
     while(1){
         vTaskDelay(pdMS_TO_TICKS(1000));
+#if 0
         platform_printf("APP_Task:%d\n", flag);
         if(flag > 0){
             flag--;
@@ -144,6 +145,7 @@ static void APP_Task(void *pvParameters){
                 AppJumpToBoot();
             }
         }
+#endif
     }
 }
 static void APP_TaskCreate(void){

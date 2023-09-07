@@ -7,7 +7,7 @@
 
 // Test config.
 #define USER_ERASE_BOOT_PARAM_EN        (0)     /* <= For test. Enable erase boot params area for startup. */
-#define USER_APP_CODE_CHECK_CRC_EN      (1)     /* <= For test. Enable checking CRC of APP before jumping to APP. */
+#define USER_APP_CODE_CHECK_CRC_EN      (0)     /* <= For test. Enable checking CRC of APP before jumping to APP. */
 
 // Log enable/disable
 #define USER_IAP_MAIN_DEBUG_LOG_EN      (1)
