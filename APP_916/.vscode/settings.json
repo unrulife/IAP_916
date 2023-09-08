@@ -9,6 +9,7 @@
         "iap_916.h": "c",
         "bsp_usb.h": "c",
         "bsp_usb_hid_kb.h": "c",
-        "btstack_util.h": "c"
+        "btstack_util.h": "c",
+        "*.inc": "c"
     }
 }

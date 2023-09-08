@@ -11,29 +11,44 @@
 #define USB_DEBUG(...)      
 #endif
 
+// =============================================================================================================
+
 const USB_DEVICE_DESCRIPTOR_REAL_T DeviceDescriptor __attribute__ ((aligned (4))) = USB_DEVICE_DESCRIPTOR;
 const BSP_USB_DESC_STRUCTURE_T ConfigDescriptor __attribute__ ((aligned (4))) =
 {
-    USB_CONFIG_DESCRIPTOR,
-    USB_INTERFACE_DESCRIPTOR_KB,  USB_HID_DESCRIPTOR_KB,  {USB_EP_IN_DESCRIPTOR_KB},
-    USB_INTERFACE_DESCRIPTOR_MO,  USB_HID_DESCRIPTOR_MO,  {USB_EP_IN_DESCRIPTOR_MO},
-    USB_INTERFACE_DESCRIPTOR_CTL, USB_HID_DESCRIPTOR_CTL, {USB_EP_IN_DESCRIPTOR_CTL, USB_EP_OUT_DESCRIPTOR_CTL}
+    USB_CONFIG_DESCRIPTOR
+#if KB_DESCRIPTOR_EN
+    ,USB_INTERFACE_DESCRIPTOR_KB,  USB_HID_DESCRIPTOR_KB,  {USB_EP_IN_DESCRIPTOR_KB}
+#endif
+#if MO_DESCRIPTOR_EN
+    ,USB_INTERFACE_DESCRIPTOR_MO,  USB_HID_DESCRIPTOR_MO,  {USB_EP_IN_DESCRIPTOR_MO}
+#endif
+#if CTL_DESCRIPTOR_EN
+    ,USB_INTERFACE_DESCRIPTOR_CTL, USB_HID_DESCRIPTOR_CTL, {USB_EP_IN_DESCRIPTOR_CTL, USB_EP_OUT_DESCRIPTOR_CTL}
+#endif
 };
 const uint8_t StringDescriptor_0[] __attribute__ ((aligned (4))) = USB_STRING_LANGUAGE;
 const uint8_t StringDescriptor_1[] __attribute__ ((aligned (4))) = USB_STRING_MANUFACTURER;
 const uint8_t StringDescriptor_2[] __attribute__ ((aligned (4))) = USB_STRING_PRODUCT;
 uint8_t DynamicDescriptor[64] __attribute__ ((aligned (4)));
-const uint8_t ReportMouseDescriptor[] __attribute__ ((aligned (4))) = USB_HID_MOUSE_REPORT_DESCRIPTOR;
-const uint8_t ReportKeybDescriptor[] __attribute__ ((aligned (4))) = USB_HID_KB_REPORT_DESCRIPTOR;
-const uint8_t ReportCtlDescriptor[] __attribute__ ((aligned (4))) = USB_HID_CTL_REPORT_DESCRIPTOR;
 
 BSP_USB_VAR_s UsbVar;
+
+// =============================================================================================================
+#if KB_DESCRIPTOR_EN
+const uint8_t ReportKeybDescriptor[] __attribute__ ((aligned (4))) = USB_HID_KB_REPORT_DESCRIPTOR;
+BSP_KEYB_DATA_s KeybReport __attribute__ ((aligned (4))) = {.pending = U_TRUE};
+#endif
+
+#if MO_DESCRIPTOR_EN
+const uint8_t ReportMouseDescriptor[] __attribute__ ((aligned (4))) = USB_HID_MOUSE_REPORT_DESCRIPTOR;
+BSP_MOUSE_DATA_s MouseReport __attribute__ ((aligned (4))) = {.pending = U_TRUE};
+#endif
+
+#if CTL_DESCRIPTOR_EN
 uint8_t DataRecvBuf[EP_CTL_MPS_BYTES] __attribute__ ((aligned (4)));
 uint8_t DataSendBuf[EP_CTL_MPS_BYTES] __attribute__ ((aligned (4)));
-
-BSP_KEYB_DATA_s KeybReport __attribute__ ((aligned (4))) = {.pending = U_TRUE};
-BSP_MOUSE_DATA_s MouseReport __attribute__ ((aligned (4))) = {.pending = U_TRUE};
-
+const uint8_t ReportCtlDescriptor[] __attribute__ ((aligned (4))) = USB_HID_CTL_REPORT_DESCRIPTOR;
 BSP_CTL_DATA_s CtlReport __attribute__ ((aligned (4))) = {
     .pending = U_TRUE, 
     .preReady = U_FALSE,
@@ -44,32 +59,13 @@ BSP_CTL_DATA_s CtlReport __attribute__ ((aligned (4))) = {
 static bsp_usb_hid_ctl_recv_cb_t              usb_hid_ctl_recv_callback = NULL;
 static bsp_usb_hid_ctl_send_complete_cb_t     usb_hid_ctl_send_complete_callback = NULL;
 
+static void bsp_usb_hid_ctl_push_rx_data_to_user(uint8_t *data, uint16_t len);
+static void bsp_usb_hid_ctl_push_send_complete_to_user(void);
+static USB_ERROR_TYPE_E bsp_usp_hid_ctl_rx_data_trigger(uint8_t printFLAG);
+static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t printFLAG, uint8_t *data, uint16_t len);
+#endif
 
-static void bsp_usb_hid_ctl_push_rx_data_to_user(uint8_t *data, uint16_t len){
-    if (usb_hid_ctl_recv_callback){
-        usb_hid_ctl_recv_callback(data, len);
-    }
-}
-
-static void bsp_usb_hid_ctl_push_send_complete_to_user(void){
-    if (usb_hid_ctl_send_complete_callback){
-        usb_hid_ctl_send_complete_callback();
-    }
-}
-
-static USB_ERROR_TYPE_E bsp_usp_hid_ctl_rx_data_trigger(uint8_t printFLAG){
-    USB_DEBUG("===> RECVING(%d) ...\n", printFLAG);
-    memset(DataRecvBuf, 0x00, sizeof(DataRecvBuf));
-    return USB_RecvData(ConfigDescriptor.ep_ctl[EP_CTL_OUT-3].ep, DataRecvBuf, ConfigDescriptor.ep_ctl[EP_CTL_OUT-3].mps, 0);
-}
-
-static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t printFLAG, uint8_t *data, uint16_t len){
-    USB_DEBUG("===> Sending(%d) ...\n", printFLAG);
-    DataSendBuf[0] = CTL_REPORT_ID;
-    memcpy(&DataSendBuf[1], data, len);
-    return USB_SendData(ConfigDescriptor.ep_ctl[EP_CTL_IN-3].ep, DataSendBuf, ConfigDescriptor.ep_ctl[EP_CTL_IN-3].mps, 0);
-}
-
+// =============================================================================================================
 static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 {
     uint32_t size;
@@ -94,13 +90,17 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
         case USB_EVENT_DEVICE_SUSPEND:
         {
             USB_DEBUG("#USB SUSPEND\n");
+#if CTL_DESCRIPTOR_EN
             CtlReport.ready = U_FALSE;
+#endif
             // handle suspend, need enable interrupt in config.intmask
         }break;
         case USB_EVENT_DEVICE_RESUME:
         {
             USB_DEBUG("#USB RESUME\n");
+#if CTL_DESCRIPTOR_EN
             CtlReport.ready = U_TRUE;
+#endif
             // handle resume, need enable interrupt in config.intmask
         }break;
         case USB_EVENT_EP0_SETUP:
@@ -108,11 +108,17 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
             USB_SETUP_T* setup = USB_GetEp0SetupData();
 
-            USB_DEBUG("#USB EP0 SETUP: Recipient(%d), Type(%d), Direction(%d), bRequest(%d) \n",setup->bmRequestType.Recipient,
-                                                                                                setup->bmRequestType.Type,
-                                                                                                setup->bmRequestType.Direction,
-                                                                                                setup->bRequest
-                                                                                                );
+            if (setup->bmRequestType.Direction){
+                USB_DEBUG("#USB EP0 SETUP: Recipient(%d), Type(%d), Direction(S->M), bRequest(%d) \n",setup->bmRequestType.Recipient,
+                                                                                                    setup->bmRequestType.Type,
+                                                                                                    setup->bRequest
+                                                                                                    );
+            } else {
+                USB_DEBUG("#USB EP0 SETUP: Recipient(%d), Type(%d), Direction(M->S), bRequest(%d) \n",setup->bmRequestType.Recipient,
+                                                                                                    setup->bmRequestType.Type,
+                                                                                                    setup->bRequest
+                                                                                                    );
+            }                                                                                                    
             switch(setup->bmRequestType.Recipient)
             {
                 case USB_REQUEST_DESTINATION_DEVICE:
@@ -127,7 +133,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                             platform_set_timer(bsp_usb_device_disconn_timeout,0);
                             #endif
                             status = USB_ERROR_NONE;
-                            USB_DEBUG("###USB Set Address.\n");
+                            USB_DEBUG("###USB Set Address: 0x%04X\n", setup->wValue);
                         }
                         break;
                         case USB_REQUEST_DEVICE_CLEAR_FEATURE:
@@ -151,10 +157,16 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                             USB_DEBUG("###USB Set Configuration: cfg_idx(%d), ConfigDescriptor.config.configIndex(%d)\n", cfg_idx, ConfigDescriptor.config.configIndex);
 
                             if (ConfigDescriptor.config.configIndex == cfg_idx){
+#if KB_DESCRIPTOR_EN                        
 								status |= USB_ConfigureEp(&(ConfigDescriptor.ep_kb[0]));
-                            	status |= USB_ConfigureEp(&(ConfigDescriptor.ep_mo[0]));
+#endif
+#if MO_DESCRIPTOR_EN                                
+                                status |= USB_ConfigureEp(&(ConfigDescriptor.ep_mo[0]));
+#endif                                
+#if CTL_DESCRIPTOR_EN
                                 status |= USB_ConfigureEp(&(ConfigDescriptor.ep_ctl[0]));
                                 status |= USB_ConfigureEp(&(ConfigDescriptor.ep_ctl[1]));
+#endif                                
                             } else {
                                 USB_DEBUG("### cfg_idx error !!!\n");
                             }
@@ -172,7 +184,8 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                                     status |= USB_SendData(0, (void*)&DeviceDescriptor, size, 0);
 
-                                    USB_DEBUG("####USB Get descriptor device.\n");
+                                    USB_DEBUG("####USB Get descriptor: DEVICE. get_size:%d, send_size:%d, ep0MPS: %d\n", 
+                                                                            (setup->wLength), size, DeviceDescriptor.ep0Mps);
                                 }
                                 break;
                                 case USB_REQUEST_DEVICE_DESCRIPTOR_CONFIGURATION:
@@ -182,7 +195,8 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                                     status |= USB_SendData(0, (void*)&ConfigDescriptor, size, 0);
 
-                                    USB_DEBUG("####USB Get descriptor configuration.\n");
+                                    USB_DEBUG("####USB Get descriptor CONFIG. get_size:%d, send_size:%d\n", 
+                                                                            (setup->wLength), size);
                                 }
                                 break;
                                 case USB_REQUEST_DEVICE_DESCRIPTOR_STRING:
@@ -210,18 +224,15 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                     size = (setup->wLength < size) ? (setup->wLength) : size;
                                     status |= USB_SendData(0, (void*)addr, size, 0);
 
-                                    USB_DEBUG("####USB Get descriptor string: wValue(%d)\n", (setup->wValue&0xFF));
-
-                                    // if((setup->wValue&0xFF) == 2){
-                                    //     CtlReport.preReady = U_TRUE;
-                                    // }
+                                    USB_DEBUG("####USB Get descriptor string: index(%d), lang_id:0x%04X, get_size:%d, send_size:%d\n", 
+                                                                            (setup->wValue&0xFF), setup->wIndex, setup->wLength, size);
                                 }
                                 break;
                                 default:
                                 {
                                     status = USB_ERROR_REQUEST_NOT_SUPPORT;
 
-                                    USB_DEBUG("####USB Get descriptor not support: %d!!!\n", (setup->wValue >> 8));
+                                    USB_DEBUG("####USB Get descriptor unsupport: %d!!!\n", (setup->wValue >> 8));
                                 }break;
                             }
                         }
@@ -244,7 +255,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         default:
                         {
                             status = USB_ERROR_REQUEST_NOT_SUPPORT;
-                            USB_DEBUG("###USB dst device req not support !!!\n");
+                            USB_DEBUG("###USB dst device req unsupport !!!\n");
                         }break;
                     }
                 }
@@ -266,15 +277,18 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                     USB_DEBUG("####USB REQUEST_REPORT_INPUT.\n");
                                     switch(setup->wIndex)
                                     {
-										
-                                        case 0:
+#if KB_DESCRIPTOR_EN										
+                                        case KB_INTERFACE_IDX:
                                         {
                                             USB_SendData(0, (void*)&KeybReport, sizeof(BSP_KEYB_REPORT_s), 0);
                                         }break;
-                                        case 1:
+#endif
+#if MO_DESCRIPTOR_EN
+                                        case MO_INTERFACE_IDX:
                                         {
                                             USB_SendData(0, (void*)&MouseReport, sizeof(BSP_MOUSE_REPORT_s), 0);
                                         }break;
+#endif                                        
 										default:
 											USB_DEBUG("#####USB wIndex:%d, TODO\n", setup->wIndex);
 											break;
@@ -282,25 +296,27 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                 }break;
                                 default:
                                 {
-                                    USB_DEBUG("####USB REQUEST_REPORT_INPUT not support:%d\n", (((setup->wValue)>>8)&0xFF));
+                                    USB_DEBUG("####USB REQUEST_REPORT_INPUT unsupport:%d\n", (((setup->wValue)>>8)&0xFF));
                                     status = USB_ERROR_REQUEST_NOT_SUPPORT;
                                 }break;
                             }
                         }break;
                         case USB_REQUEST_HID_CLASS_REQUEST_SET_REPORT:
                         {
-                            USB_DEBUG("###USB set report: wValue(%d), wIndex(%d), TODO\n",(((setup->wValue)>>8)&0xFF), setup->wIndex);
+                            USB_DEBUG("###USB report set: req_type(0x%02X), wIndex(%d) \n", (((setup->wValue)>>8)&0xFF), setup->wIndex);
                             switch(((setup->wValue)>>8)&0xFF)
                             {
                                 case USB_REQUEST_HID_CLASS_REQUEST_REPORT_OUTPUT:
                                 {
                                     switch(setup->wIndex)
                                     {
-                                        case 0:
+                                        case KB_INTERFACE_IDX:
                                         {
+#if KB_DESCRIPTOR_EN                                            
                                             // check the length, setup->wLength, for keyb, 8bit led state output is defined
                                             KeybReport.led_state = setup->data[0];
                                             // refer to BSP_KEYB_KEYB_LED_e
+#endif                                            
                                         }break;
                                     }
                                 }break;
@@ -312,55 +328,88 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         }break;
                         case USB_REQUEST_HID_CLASS_REQUEST_SET_IDLE:
                         {
-                            USB_DEBUG("###USB set idle: wIndex(%d)\n", setup->wIndex);
+                            USB_DEBUG("###USB set idle: interface index(%d)\n", setup->wIndex);
                             switch(setup->wIndex)
                             {
-                                case 0:
+#if KB_DESCRIPTOR_EN                                
+                                case KB_INTERFACE_IDX:
                                 {
                                     KeybReport.pending = U_TRUE;
                                 }break;
-                                case 1:
+#endif
+#if MO_DESCRIPTOR_EN                                
+                                case MO_INTERFACE_IDX:
                                 {
                                     MouseReport.pending = U_TRUE;
                                 }break;
+#endif                          
+#if CTL_DESCRIPTOR_EN                                
+                                case CTL_INTERFACE_IDX:
+                                {
+                                    CtlReport.pending = U_TRUE;
+                                    CtlReport.ready = U_FALSE;
+                                }break;
+#endif                          
+                                default:
+                                    USB_DEBUG("#####USB unsupported index:%d, TODO\n", setup->wIndex);
+                                    break;
                             }
                         }break;
                         case USB_REQUEST_DEVICE_GET_DESCRIPTOR:
                         {
-                            USB_DEBUG("###USB get descriptor: wValue(0x%x), wIndex(%d)\n",(((setup->wValue)>>8)&0xFF), setup->wIndex);
+                            USB_DEBUG("###USB get interface descriptor: HID_CLASS(0x%x), wIndex(%d)\n",(((setup->wValue)>>8)&0xFF), setup->wIndex);
                             switch(((setup->wValue)>>8)&0xFF)
                             {
                                 case USB_REQUEST_HID_CLASS_DESCRIPTOR_REPORT:
                                 {
+                                    USB_DEBUG("####USB get report descriptor.\n");
                                     switch(setup->wIndex)
                                     {
-                                        case 0:
+#if KB_DESCRIPTOR_EN                                           
+                                        case KB_INTERFACE_IDX:
                                         {
                                             size = sizeof(ReportKeybDescriptor);
                                             size = (setup->wLength < size) ? (setup->wLength) : size;
 
                                             status |= USB_SendData(0, (void*)&ReportKeybDescriptor, size, 0);
                                             KeybReport.pending = U_FALSE;
+
+                                            USB_DEBUG("#####USB Report Keyb Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
                                         }break;
-                                        case 1:
+#endif
+#if MO_DESCRIPTOR_EN                                           
+                                        case MO_INTERFACE_IDX:
                                         {
                                             size = sizeof(ReportMouseDescriptor);
                                             size = (setup->wLength < size) ? (setup->wLength) : size;
 
                                             status |= USB_SendData(0, (void*)&ReportMouseDescriptor, size, 0);
                                             MouseReport.pending = U_FALSE;
+											USB_DEBUG("#####USB Report Mouse Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
                                         }break;
-                                        case 3:
+#endif                                        
+#if CTL_DESCRIPTOR_EN
+                                        case CTL_INTERFACE_IDX:
                                         {
                                             size = sizeof(ReportCtlDescriptor);
                                             size = (setup->wLength < size) ? (setup->wLength) : size;
 
                                             status |= USB_SendData(0, (void*)&ReportCtlDescriptor, size, 0);
+                                            CtlReport.pending = U_FALSE;
+                                            CtlReport.preReady = U_TRUE;
+											USB_DEBUG("#####USB Report Ctl Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
+                                        }break;
+#endif
+                                        default:
+                                        {
+                                            USB_DEBUG("###USB unsupport report descriptor:%d, TODO\n", setup->wIndex);
+                                            status = USB_ERROR_REQUEST_NOT_SUPPORT;
                                         }break;
                                     }
                                 }break;
                                 default:
                                 {
+                                    USB_DEBUG("###USB unsupport interface descriptor:0x%02X!!!, TODO\n", ((setup->wValue)>>8)&0xFF);
                                     status = USB_ERROR_REQUEST_NOT_SUPPORT;
                                 }break;
                             }
@@ -368,7 +417,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         break;
                         default:
                         {
-                            USB_DEBUG("###USB dst interface req not support !!!\n");
+                            USB_DEBUG("###USB dst interface req unsupport !!!, TODO\n");
                             status = USB_ERROR_REQUEST_NOT_SUPPORT;
                         }break;
                     }
@@ -376,12 +425,12 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                 break;
                 default:
                 {
-                    USB_DEBUG("###USB Recipient not support !!!\n");
+                    USB_DEBUG("###USB Recipient unsupport !!!, TODO\n");
                     status = USB_ERROR_REQUEST_NOT_SUPPORT;
                 }break;
             }
 
-            // if status equals to USB_ERROR_REQUEST_NOT_SUPPORT: it is not supported request.
+            // if status equals to USB_ERROR_REQUEST_NOT_SUPPORT: it is unsupported request.
             // if status equals to USB_ERROR_NONE: it is successfully executed.
             if((USB_ERROR_NONE != status) && (USB_ERROR_REQUEST_NOT_SUPPORT != status))
             {
@@ -396,66 +445,78 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
             {
                 case USB_CALLBACK_TYPE_RECEIVE_END:
                 {
-                    USB_DEBUG("##USB recv end: ep(%d)\n", event->data.ep);
+                    USB_DEBUG("##USB RECV END: ep(%d)\n", event->data.ep);
+#if CTL_DESCRIPTOR_EN
                     if(event->data.ep == EP_CTL_OUT){
 
                         #if 0
                         platform_printf("(%d)RECV[%d]: ",event->data.ep, event->data.size);printf_hexdump(DataRecvBuf, event->data.size);
                         #endif
 
-                        // /* Push rx data to user callback. */
-                        // bsp_usb_hid_ctl_push_rx_data_to_user(&DataRecvBuf[1], event->data.size-1);
+                        /* Push rx data to user callback. */
+                        bsp_usb_hid_ctl_push_rx_data_to_user(&DataRecvBuf[1], event->data.size-1);
 
-                        // /* Start next rx proc. */
-                        // bsp_usp_hid_ctl_rx_data_trigger(2);
+                        /* Start next rx proc. */
+                        bsp_usp_hid_ctl_rx_data_trigger(2);
                     }
+#endif
                 }break;
                 case USB_CALLBACK_TYPE_TRANSMIT_END:
                 {
 					USB_DEBUG("##USB send OK: ep(%d)\n", event->data.ep);
-					
-					// /* Enter receiving status after setup complete. */
-                    // if(event->data.ep == 0 && CtlReport.preReady == U_TRUE){
-                    //     CtlReport.preReady = U_FALSE;
+#if CTL_DESCRIPTOR_EN
+					/* Enter receiving status after setup complete. */
+                    if(event->data.ep == 0 && CtlReport.preReady == U_TRUE){
+                        CtlReport.preReady = U_FALSE;
 
-                    //     /* Start first rx proc. */
-                    //     bsp_usp_hid_ctl_rx_data_trigger(1);
+                        /* Start first rx proc. */
+                        bsp_usp_hid_ctl_rx_data_trigger(1);
 
-                    //     CtlReport.ready = U_TRUE; // 枚举结束
-                    //     platform_printf("===> USB OK <===\n");
-                    // }
+                        CtlReport.ready = U_TRUE; // 枚举结束
+                        platform_printf("===> USB OK <===\n");
+                    }
+#endif                    
 					
 					/* If send ok, Clear busy status, and notify user. */
                     switch(event->data.ep)
                     {
+#if KB_DESCRIPTOR_EN                        
                         case EP_KB_IN:
                         {
                             KeybReport.pending = U_FALSE;
                         }break;
+#endif
+#if MO_DESCRIPTOR_EN                        
                         case EP_MO_IN:
                         {
                             MouseReport.pending = U_FALSE;
                         }break;
+#endif                        
+#if CTL_DESCRIPTOR_EN
 						case EP_CTL_IN:
                         {
                             CtlReport.sendBusy = U_FALSE;
                             // bsp_usb_hid_ctl_push_send_complete_to_user();
                         }break;
+#endif
                     }
 
                 }break;
                 default:
-                    USB_DEBUG("##USB unsupport type:%d\n", event->data.type);
+                    USB_DEBUG("##USB unsupport type:%d, TODO\n", event->data.type);
                     break;
             }
         }break;
         default:
-            USB_DEBUG("#USB unsupport id:%d\n", event->id);
+            USB_DEBUG("#USB unsupport id:%d, TODO\n", event->id);
             break;
     }
 
     return status;
 }
+
+// ===================================================================================================
+#if KB_DESCRIPTOR_EN
 void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press)
 {
     uint32_t j;
@@ -526,6 +587,14 @@ uint8_t bsp_usb_get_hid_keyb_led_report(void)
     return (KeybReport.led_state);
 }
 
+void bsp_usb_handle_hid_keyb_clear_report_buffer(void)
+{
+    memset(&(KeybReport.report),0x00, sizeof(BSP_KEYB_REPORT_s));
+}
+#endif // #if KB_DESCRIPTOR_EN
+
+// ===================================================================================================
+#if MO_DESCRIPTOR_EN
 void bsp_usb_handle_hid_mouse_report(int8_t x, int8_t y, uint8_t btn)
 {
     if((U_FALSE == MouseReport.pending)&&((0!=x)||(0!=y)||(btn!=MouseReport.report.button)))
@@ -539,17 +608,87 @@ void bsp_usb_handle_hid_mouse_report(int8_t x, int8_t y, uint8_t btn)
     }
 }
 
-
-void bsp_usb_handle_hid_keyb_clear_report_buffer(void)
-{
-    memset(&(KeybReport.report),0x00, sizeof(BSP_KEYB_REPORT_s));
-}
-
 void bsp_usb_handle_hid_mouse_clear_report_buffer(void)
 {
     memset(&(MouseReport.report),0x00, sizeof(BSP_MOUSE_REPORT_s));
 }
+#endif // #if MO_DESCRIPTOR_EN
 
+// ===================================================================================================
+#if CTL_DESCRIPTOR_EN
+
+static void bsp_usb_hid_ctl_push_rx_data_to_user(uint8_t *data, uint16_t len){
+    if (usb_hid_ctl_recv_callback){
+        usb_hid_ctl_recv_callback(data, len);
+    }
+}
+
+static void bsp_usb_hid_ctl_push_send_complete_to_user(void){
+    if (usb_hid_ctl_send_complete_callback){
+        usb_hid_ctl_send_complete_callback();
+    }
+}
+
+static USB_ERROR_TYPE_E bsp_usp_hid_ctl_rx_data_trigger(uint8_t printFLAG){
+    USB_DEBUG("===> RECVING(%d) ...\n", printFLAG);
+    memset(DataRecvBuf, 0x00, sizeof(DataRecvBuf));
+    return USB_RecvData(ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_OUT)].ep, DataRecvBuf, ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_OUT)].mps, 0);
+}
+
+static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t printFLAG, uint8_t *data, uint16_t len){
+    USB_DEBUG("===> Sending(%d) ...\n", printFLAG);
+    DataSendBuf[0] = CTL_REPORT_ID;
+    memcpy(&DataSendBuf[1], data, len);
+    return USB_SendData(ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].ep, DataSendBuf, ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].mps, 0);
+}
+
+
+USB_HID_CTL_STA_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len){
+
+    if(!CtlReport.ready){
+        return USB_HID_STA_NOT_READY;
+    }
+
+    if(CtlReport.sendBusy){
+        return USB_HID_STA_BUSY;
+    }
+
+    if( data == NULL || len == 0 || len > MAX_REPORT_SIZE ){
+        return USB_HID_STA_INVALID_PARAM;
+    }
+
+    USB_HID_CTL_STA_t error = USB_HID_STA_SUCCESS;
+
+    USB_ERROR_TYPE_E status = bsp_usp_hid_ctl_tx_data_trigger(1, data, len);
+    switch(status){
+        case USB_ERROR_NONE:
+            CtlReport.sendBusy = U_TRUE;
+            break;
+        case USB_ERROR_INVALID_INPUT:
+            error = USB_HID_STA_INTERNAL_ERR;
+            break;
+        case USB_ERROR_INACTIVE_EP:
+            error = USB_HID_STA_INACTIVE_EP;
+            break;
+        default:
+            error = USB_HID_STA_UNKNOW_ERR;
+            break;
+    }
+
+    return error;
+}
+
+void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_complete_cb_t cb){
+    usb_hid_ctl_send_complete_callback = cb;
+}
+
+void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb){
+    usb_hid_ctl_recv_callback = cb;
+}
+#endif
+
+// ===================================================================================================
+// ===================================================================================================
 void bsp_usb_init(void)
 {
     USB_INIT_CONFIG_T config;
@@ -596,48 +735,4 @@ void bsp_usb_device_disconn_timeout(void)
     USB_DEBUG("USB cable disconnected.");
 }
 #endif
-
-
-USB_HID_CTL_STA_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len){
-
-    if(!CtlReport.ready){
-        return USB_HID_STA_NOT_READY;
-    }
-
-    if(CtlReport.sendBusy){
-        return USB_HID_STA_BUSY;
-    }
-
-    if( data == NULL || len == 0 || len > MAX_REPORT_SIZE ){
-        return USB_HID_STA_INVALID_PARAM;
-    }
-
-    USB_HID_CTL_STA_t error = USB_HID_STA_SUCCESS;
-
-    USB_ERROR_TYPE_E status = bsp_usp_hid_ctl_tx_data_trigger(1, data, len);
-    switch(status){
-        case USB_ERROR_NONE:
-            CtlReport.sendBusy = U_TRUE;
-            break;
-        case USB_ERROR_INVALID_INPUT:
-            error = USB_HID_STA_INTERNAL_ERR;
-            break;
-        case USB_ERROR_INACTIVE_EP:
-            error = USB_HID_STA_INACTIVE_EP;
-            break;
-        default:
-            error = USB_HID_STA_UNKNOW_ERR;
-            break;
-    }
-
-    return error;
-}
-
-void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_complete_cb_t cb){
-    usb_hid_ctl_send_complete_callback = cb;
-}
-
-void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb){
-    usb_hid_ctl_recv_callback = cb;
-}
 

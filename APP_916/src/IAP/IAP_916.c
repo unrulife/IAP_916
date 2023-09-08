@@ -1,4 +1,5 @@
 #include "IAP_916.h"
+#include "btstack_util.h"
 #include "platform_api.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -128,8 +129,26 @@ static uint8_t IAP_CheckFlashVersionInfo(void){
     return 0;
 }
 
+// ===================================================================================================
+void bsp_usb_hid_ctl_recv_callback(uint8_t *data, uint16_t len){
+    // print recv data.
+    platform_printf("RECV[%d]: ",data, len);
+    printf_hexdump(data, len);
+
+    // send data request.
+    bsp_usb_hid_ctl_send(data, len);
+}
+void bsp_usb_hid_ctl_send_complete_callback(void){
+    platform_printf("Send OK.\n");
+}
+// ===================================================================================================
+
 static void APP_Task(void *pvParameters){
     static int flag = 10;
+
+    bsp_usb_hid_ctl_send_complete_callback_register(&bsp_usb_hid_ctl_send_complete_callback);
+    bsp_usb_hid_ctl_recv_callback_register(&bsp_usb_hid_ctl_recv_callback);
+
     while(1){
         vTaskDelay(pdMS_TO_TICKS(1000));
 #if 0

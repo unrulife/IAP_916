@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include "ingsoc.h"
 
+#define KB_DESCRIPTOR_EN    (1)
+#define MO_DESCRIPTOR_EN    (0)
+#define CTL_DESCRIPTOR_EN   (1)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,11 +34,11 @@ typedef struct __attribute__((packed))
 {
         uint8_t    size;
         uint8_t    type;
-        uint16_t    bcd;
+        uint16_t   bcd;
         uint8_t    countryCode;
         uint8_t    nbDescriptor;
         uint8_t    classType0;
-        uint16_t    classlength0;
+        uint16_t   classlength0;
 } BSP_USB_HID_DESCRIPTOR_T;
 
 typedef enum
@@ -71,7 +75,7 @@ typedef enum
         .usbProto = 0x00, \
         .ep0Mps = USB_EP0_MPS, \
         .vendor = 0xFFFF, \
-        .product = 0xFA28, \
+        .product = 0xFA22, \
         .release = 0x00, \
         .iManufacturer = USB_STRING_MANUFACTURER_IDX, \
         .iProduct = USB_STRING_PRODUCT_IDX, \
@@ -79,32 +83,84 @@ typedef enum
         .nbConfig = 0x01 \
 }
 
-#define bNUM_INTERFACES (3)
-#define bNUM_EP_KB      (1)
-#define bNUM_EP_MO      (1)
-#define bNUM_EP_CTL     (2)
+#if KB_DESCRIPTOR_EN
+#define KB_INTERFACES_NUM   (1)
+#else
+#define KB_INTERFACES_NUM   (0)
+#endif
 
+#if MO_DESCRIPTOR_EN
+#define MO_INTERFACES_NUM   (1)
+#else
+#define MO_INTERFACES_NUM   (0)
+#endif
+
+#if CTL_DESCRIPTOR_EN
+#define CTL_INTERFACES_NUM  (1)
+#else
+#define CTL_INTERFACES_NUM  (0)
+#endif
+
+#define bNUM_INTERFACES (KB_INTERFACES_NUM + MO_INTERFACES_NUM + CTL_INTERFACES_NUM)
+
+#if KB_DESCRIPTOR_EN
+#define KB_INTERFACE_IDX    (0x00)
+#define bNUM_EP_KB          (1)
+#define EP_KB_IN            (1)/* EP1 is in */
+#define EP_KB_IDX_GET(x)    (x - EP_KB_IN) // ep_kb[x]
+#define EP_KB_MPS_BYTES     (8)
+#endif
+
+#if MO_DESCRIPTOR_EN
+#define MO_INTERFACE_IDX    (0x01)
+#define bNUM_EP_MO          (1)
+#define EP_MO_IN            (2)/* EP2 is in */
+#define EP_MO_IDX_GET(x)    (x - EP_MO_IN) // ep_mo[x]
+#define EP_MO_MPS_BYTES     (8)
+#endif
+
+#if CTL_DESCRIPTOR_EN
+#define CTL_INTERFACE_IDX   (0x02)
+#define bNUM_EP_CTL         (2)
+#define EP_CTL_IN           (3)/* EP3 is in */
+#define EP_CTL_OUT          (4)/* EP4 is out */
+#define EP_CTL_IDX_GET(x)   (x - EP_CTL_IN) // ep_ctl[x]
+#define EP_CTL_MPS_BYTES    (64)
+#endif
+
+#define SELF_POWERED        (1)
+#define REMOTE_WAKEUP       (0)
+
+// =======================================================================================
 typedef struct __attribute__((packed))
 {
     /* config */
     USB_CONFIG_DESCRIPTOR_REAL_T config;
+
+#if KB_DESCRIPTOR_EN
     /* keyboard */
     USB_INTERFACE_DESCRIPTOR_REAL_T interface_kb;
     BSP_USB_HID_DESCRIPTOR_T hid_kb;
     USB_EP_DESCRIPTOR_REAL_T ep_kb[bNUM_EP_KB];
+#endif
+
+#if MO_DESCRIPTOR_EN
     /* mouse */
     USB_INTERFACE_DESCRIPTOR_REAL_T interface_mo;
     BSP_USB_HID_DESCRIPTOR_T hid_mo;
     USB_EP_DESCRIPTOR_REAL_T ep_mo[bNUM_EP_MO];
+#endif
+
+#if CTL_DESCRIPTOR_EN
     /* control */
     USB_INTERFACE_DESCRIPTOR_REAL_T interface_ctl;
     BSP_USB_HID_DESCRIPTOR_T hid_ctl;
     USB_EP_DESCRIPTOR_REAL_T ep_ctl[bNUM_EP_CTL];
+#endif
+
 }BSP_USB_DESC_STRUCTURE_T;
 
-#define SELF_POWERED (1)
-#define REMOTE_WAKEUP (0)
-
+// =======================================================================================
 #define USB_CONFIG_DESCRIPTOR \
 { \
     .size = sizeof(USB_CONFIG_DESCRIPTOR_REAL_T), \
@@ -117,11 +173,13 @@ typedef struct __attribute__((packed))
     .maxPower = 0xFA \
 }
 
+// =======================================================================================
+#if KB_DESCRIPTOR_EN
 #define USB_INTERFACE_DESCRIPTOR_KB \
 { \
     .size = sizeof(USB_INTERFACE_DESCRIPTOR_REAL_T), \
     .type = 4, \
-    .interfaceIndex = 0x00, \
+    .interfaceIndex = KB_INTERFACE_IDX, \
     .alternateSetting = 0x00, \
     .nbEp = bNUM_EP_KB,    \
     .usbClass = 0x03, \
@@ -145,8 +203,6 @@ typedef struct __attribute__((packed))
     .classlength0 = USB_HID_KB_REPORT_DESCRIPTOR_SIZE \
 }
 
-#define EP_KB_IN (1)/* EP1 is in */
-#define EP_X_MPS_BYTES (8)
 
 #define USB_EP_IN_DESCRIPTOR_KB \
 { \
@@ -154,7 +210,7 @@ typedef struct __attribute__((packed))
     .type = 5, \
     .ep = USB_EP_DIRECTION_IN(EP_KB_IN), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
-    .mps = EP_X_MPS_BYTES, \
+    .mps = EP_KB_MPS_BYTES, \
     .interval = 0xA \
 }
 
@@ -193,12 +249,15 @@ typedef struct __attribute__((packed))
         0x81, 0x00, /*     INPUT (Data,Ary,Abs)                                                         */    \
         0xc0                /* END_COLLECTION                                                                         */    \
 }
+#endif // #if KB_DESCRIPTOR_EN
 
+// =======================================================================================
+#if MO_DESCRIPTOR_EN
 #define USB_INTERFACE_DESCRIPTOR_MO \
 { \
     .size = sizeof(USB_INTERFACE_DESCRIPTOR_REAL_T), \
     .type = 4, \
-    .interfaceIndex = 0x01, \
+    .interfaceIndex = MO_INTERFACE_IDX, \
     .alternateSetting = 0x00, \
     .nbEp = bNUM_EP_MO,    \
     .usbClass = 0x03, \
@@ -222,7 +281,6 @@ typedef struct __attribute__((packed))
     .classlength0 = USB_HID_MOUSE_REPORT_DESCRIPTOR_SIZE \
 }
 
-#define EP_MO_IN (2)/* EP2 is in */
 
 #define USB_EP_IN_DESCRIPTOR_MO \
 { \
@@ -230,7 +288,7 @@ typedef struct __attribute__((packed))
     .type = 5, \
     .ep = USB_EP_DIRECTION_IN(EP_MO_IN), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
-    .mps = EP_X_MPS_BYTES, \
+    .mps = EP_MO_MPS_BYTES, \
     .interval = 0xA \
 }
 
@@ -263,13 +321,16 @@ typedef struct __attribute__((packed))
         0xc0,             /*     END_COLLECTION                                     */     \
         0xc0                /* END_COLLECTION                                         */     \
 }
+#endif // #if MO_DESCRIPTOR_EN
 
 // =======================================================================================
+#if CTL_DESCRIPTOR_EN
+
 #define USB_INTERFACE_DESCRIPTOR_CTL \
 { \
     .size = sizeof(USB_INTERFACE_DESCRIPTOR_REAL_T), \
     .type = 4, \
-    .interfaceIndex = 0x00, \
+    .interfaceIndex = CTL_INTERFACE_IDX, \
     .alternateSetting = 0x00, \
     .nbEp = bNUM_EP_CTL,    \
     .usbClass = 0x03, \
@@ -293,10 +354,6 @@ typedef struct __attribute__((packed))
     .classlength0 = USB_HID_CTL_REPORT_DESCRIPTOR_SIZE \
 }
 
-#define EP_CTL_IN  (3)/* EP3 is in */
-#define EP_CTL_OUT (4)/* EP4 is out */
-#define EP_CTL_MPS_BYTES (64)
-
 #define USB_EP_IN_DESCRIPTOR_CTL \
 { \
     .size = sizeof(USB_EP_DESCRIPTOR_REAL_T), \
@@ -304,7 +361,7 @@ typedef struct __attribute__((packed))
     .ep = USB_EP_DIRECTION_IN(EP_CTL_IN), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
     .mps = EP_CTL_MPS_BYTES, \
-    .interval = 0x14 \
+    .interval = 0xA \
 }
 
 #define USB_EP_OUT_DESCRIPTOR_CTL \
@@ -314,7 +371,7 @@ typedef struct __attribute__((packed))
     .ep = USB_EP_DIRECTION_OUT(EP_CTL_OUT), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
     .mps = EP_CTL_MPS_BYTES, \
-    .interval = 0x14 \
+    .interval = 0xA \
 }
 
 #define CTL_REPORT_ID       0x38 // REPORT ID
@@ -364,10 +421,10 @@ typedef struct __attribute__((packed))
 //     /* 30 bytes */   \
 // }
 
+#endif
+
 // =======================================================================================
-
-
-
+#if KB_DESCRIPTOR_EN
 typedef enum {
     HID_KEYB_A                             = 4, 
     HID_KEYB_B                             = 5, 
@@ -486,6 +543,25 @@ typedef enum {
     HID_KEYB_LED_KANA                 = 0x10
 } BSP_KEYB_KEYB_LED_e;
 
+
+#define KEY_TABLE_LEN (6)
+typedef struct __attribute__((packed))
+{
+    uint8_t modifier;
+    uint8_t reserved;
+    uint8_t key_table[KEY_TABLE_LEN];
+}BSP_KEYB_REPORT_s;
+
+typedef struct
+{
+    BSP_KEYB_REPORT_s report;
+    uint8_t led_state;
+    uint8_t pending;
+}BSP_KEYB_DATA_s;
+#endif
+
+// =======================================================================================
+#if MO_DESCRIPTOR_EN
 #define USB_HID_MO_BUTTON_POS     0
 #define USB_HID_MO_X_POS         1
 #define USB_HID_MO_Y_POS         2
@@ -503,23 +579,10 @@ typedef struct
     BSP_MOUSE_REPORT_s report;
     uint8_t pending;
 }BSP_MOUSE_DATA_s;
-
-#define KEY_TABLE_LEN (6)
-typedef struct __attribute__((packed))
-{
-    uint8_t modifier;
-    uint8_t reserved;
-    uint8_t key_table[KEY_TABLE_LEN];
-}BSP_KEYB_REPORT_s;
-
-typedef struct
-{
-    BSP_KEYB_REPORT_s report;
-    uint8_t led_state;
-    uint8_t pending;
-}BSP_KEYB_DATA_s;
+#endif
 
 // =======================================================================================
+#if CTL_DESCRIPTOR_EN
 typedef enum
 {
     USB_HID_STA_SUCCESS,            /* > Operate success. */
@@ -539,28 +602,6 @@ typedef struct
     uint8_t ready;
     uint8_t sendBusy;
 }BSP_CTL_DATA_s;
-// =======================================================================================
-
-
-
-typedef enum
-{
-    BSP_USB_PHY_DISABLE,
-    BSP_USB_PHY_ENABLE
-}BSP_USB_PHY_ENABLE_e;
-
-typedef enum
-{
-    BSP_USB_PHY_DP_PULL_UP = 1,
-    BSP_USB_PHY_DM_PULL_UP,
-    BSP_USB_PHY_DP_DM_PULL_DOWN
-}BSP_USB_PHY_PULL_e;
-
-typedef struct
-{
-    uint32_t remote_wakeup:1;
-    uint32_t unused:31;
-}BSP_USB_VAR_s;
 
 /**
  * @brief bsp_usb_hid_ctl_recv_cb_t
@@ -569,10 +610,11 @@ typedef struct
  */
 typedef void (* bsp_usb_hid_ctl_recv_cb_t)(uint8_t *data, uint16_t len);
 typedef void (* bsp_usb_hid_ctl_send_complete_cb_t)(void);
+#endif
 
-extern void bsp_usb_init(void);
-extern void bsp_usb_disable(void);
-extern void bsp_usb_device_remote_wakeup(void);
+
+// =======================================================================================
+#if KB_DESCRIPTOR_EN
 /**
  * @brief interface API. send keyboard key report
  *
@@ -596,6 +638,9 @@ extern void bsp_usb_handle_hid_keyb_modifier_report(BSP_KEYB_KEYB_MODIFIER_e mod
  * @param[out] 8bit value, refer to BSP_KEYB_KEYB_LED_e. 
  */
 extern uint8_t bsp_usb_get_hid_keyb_led_report(void);
+#endif
+// =======================================================================================
+#if MO_DESCRIPTOR_EN
 /**
  * @brief interface API. send mouse report
  *
@@ -605,10 +650,45 @@ extern uint8_t bsp_usb_get_hid_keyb_led_report(void);
  * @param[out] null. 
  */
 extern void bsp_usb_handle_hid_mouse_report(int8_t x, int8_t y, uint8_t btn);
+#endif
+// =======================================================================================
+#if CTL_DESCRIPTOR_EN
+USB_HID_CTL_STA_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len);
+void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_complete_cb_t cb);
+void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb);
+#endif
+
+
+// =======================================================================================
+
+typedef enum
+{
+    BSP_USB_PHY_DISABLE,
+    BSP_USB_PHY_ENABLE
+}BSP_USB_PHY_ENABLE_e;
+
+typedef enum
+{
+    BSP_USB_PHY_DP_PULL_UP = 1,
+    BSP_USB_PHY_DM_PULL_UP,
+    BSP_USB_PHY_DP_DM_PULL_DOWN
+}BSP_USB_PHY_PULL_e;
+
+typedef struct
+{
+    uint32_t remote_wakeup:1;
+    uint32_t unused:31;
+}BSP_USB_VAR_s;
+
+
+extern void bsp_usb_init(void);
+extern void bsp_usb_disable(void);
+extern void bsp_usb_device_remote_wakeup(void);
 
 #ifdef FEATURE_DISCONN_DETECT
 void bsp_usb_device_disconn_timeout(void);
 #endif
+
 
 #ifdef __cplusplus
 }
