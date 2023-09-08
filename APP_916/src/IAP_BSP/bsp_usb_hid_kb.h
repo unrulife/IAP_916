@@ -374,7 +374,7 @@ typedef struct __attribute__((packed))
     .interval = 0xA \
 }
 
-#define CTL_REPORT_ID       0x38 // REPORT ID
+#define CTL_REPORT_ID       0x2F // REPORT ID
 #define MAX_REPORT_SIZE     63   // WITHOUT REPORT ID.
 
 /* 低层每次中断发送的长度为64字节，其中第一字节必须是report id，所以有效字节是后续63字节，所以IN和OUT均设为63.
