@@ -5,7 +5,7 @@
 #include "bsp_usb_hid_kb.h"
 #include "btstack_util.h"
 
-#if 1
+#if 0
 #define USB_DEBUG(...)	platform_printf(__VA_ARGS__)
 #else
 #define USB_DEBUG(...)      
