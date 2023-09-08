@@ -105,11 +105,13 @@ typedef struct __attribute__((packed))
     .maxPower = 0xFA \
 }
 
+#define IAP_INTERFACE_IDX   (0x00)
+
 #define USB_INTERFACE_DESCRIPTOR_IAP \
 { \
     .size = sizeof(USB_INTERFACE_DESCRIPTOR_REAL_T), \
     .type = 4, \
-    .interfaceIndex = 0x00, \
+    .interfaceIndex = IAP_INTERFACE_IDX, \
     .alternateSetting = 0x00, \
     .nbEp = bNUM_EP_IAP,    \
     .usbClass = 0x03, \

@@ -203,9 +203,9 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                                     USB_DEBUG("####USB Get descriptor string: wValue(%d)\n", (setup->wValue&0xFF));
 
-                                    if((setup->wValue&0xFF) == 2){
-                                        IapReport.preReady = U_TRUE;
-                                    }
+                                    // if((setup->wValue&0xFF) == 2){
+                                    //     IapReport.preReady = U_TRUE;
+                                    // }
                                 }
                                 break;
                                 default:
@@ -258,7 +258,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                     switch(setup->wIndex)
                                     {
                                         USB_DEBUG("#####USB wIndex:%d, TODO\n", setup->wIndex);
-                                        // case 0:
+                                        // case IAP_INTERFACE_IDX:
                                         // {
                                         //     USB_SendData(0, (void*)&IapReport, sizeof(BSP_IAP_DATA_s), 0);
                                         // }break;
@@ -280,7 +280,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                 {
                                     switch(setup->wIndex)
                                     {
-                                        case 0:
+                                        case IAP_INTERFACE_IDX:
                                         {
                                             // check the length, setup->wLength, for keyb, 8bit led state output is defined
                                             // KeybReport.led_state = setup->data[0];
@@ -299,10 +299,10 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                             USB_DEBUG("###USB set idle: wIndex(%d)\n", setup->wIndex);
                             switch(setup->wIndex)
                             {
-                                case 0:
+                                case IAP_INTERFACE_IDX:
                                 {
+                                    IapReport.ready = U_FALSE;
                                     // IapReport.pending = U_TRUE;
-                                    // IapReport.ready = U_TRUE;
                                 }break;
                             }
                         }break;
@@ -315,12 +315,13 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                 {
                                     switch(setup->wIndex)
                                     {
-                                        case 0:
+                                        case IAP_INTERFACE_IDX:
                                         {
                                             size = sizeof(ReportIapDescriptor);
                                             size = (setup->wLength < size) ? (setup->wLength) : size;
 
                                             status |= USB_SendData(0, (void*)&ReportIapDescriptor, size, 0);
+                                            IapReport.preReady = U_TRUE;
                                             // IapReport.pending = U_FALSE;
                                             // IapReport.sendBusy = U_TRUE;
                                         }break;
