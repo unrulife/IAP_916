@@ -8,6 +8,10 @@
 #include "string.h"
 #include "IAP_UserDef.h"
 #include "bsp_usb_hid_kb.h"
+#include "crc16.h"
+#include "IAP_Transport.h"
+#include "IAP_Application.h"
+
 
 // IAP INFO
 const char iap_chip[]   = USER_DEF_CHIP_ID;         // max = 15bytes.
@@ -36,16 +40,11 @@ void IAP_Params_app_upgrade_flag_set(void){
 
 
 void AppJumpToBoot(void){
-    platform_printf("app jump to boot.\n");
+    platform_printf("app jump to boot: [0X%08X]\n", BOOT_START_ADDR);
     IAP_Params_app_upgrade_flag_set();
     Uart_Send_Complete_Check();
     for(int i=20000;i>0;i--);
     platform_switch_app(BOOT_START_ADDR);
-}
-
-// =================================================================================================
-uint16_t getCRC(uint8_t *buffer, uint16_t len){
-    return crc(buffer, len);
 }
 
 // =================================================================================================
@@ -82,7 +81,7 @@ static uint8_t IAP_CheckFlashVersionInfo(void){
         return 0;
     }
 
-    uint16_t crc16 = getCRC((uint8_t *)&versionInfo.verInfo, sizeof(IAP_AppVerInfoTypedef));
+    uint16_t crc16 = getCRC16((uint8_t *)&versionInfo.verInfo, sizeof(IAP_AppVerInfoTypedef));
     if(versionInfo.crcVal != crc16){
         platform_printf("version info CRC error, calc[0x%04X], flash[0x%04X].\n", crc16, versionInfo.crcVal);
         return 1;
@@ -128,26 +127,10 @@ static uint8_t IAP_CheckFlashVersionInfo(void){
 
     return 0;
 }
-
-// ===================================================================================================
-void bsp_usb_hid_ctl_recv_callback(uint8_t *data, uint16_t len){
-    // print recv data.
-    platform_printf("RECV[%d]: ",data, len);
-    printf_hexdump(data, len);
-
-    // send data request.
-    bsp_usb_hid_ctl_send(data, len);
-}
-void bsp_usb_hid_ctl_send_complete_callback(void){
-    platform_printf("Send OK.\n");
-}
 // ===================================================================================================
 
 static void APP_Task(void *pvParameters){
     static int flag = 10;
-
-    bsp_usb_hid_ctl_send_complete_callback_register(&bsp_usb_hid_ctl_send_complete_callback);
-    bsp_usb_hid_ctl_recv_callback_register(&bsp_usb_hid_ctl_recv_callback);
 
     while(1){
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -178,6 +161,8 @@ static void APP_TaskCreate(void){
 
 void IAP_Init(void){
     platform_printf("\n===>This is the APP code.\n");
+    IAP_Application_Init();
+    IAP_Transport_Init();
     bsp_usb_init();
 
     IAP_PrintInfo();

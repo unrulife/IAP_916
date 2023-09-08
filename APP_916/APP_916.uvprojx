@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>.\src\IAP_BSP;.\src\IAP;sdk/bundles/extension/inc;sdk/bundles/extension/inc/os;sdk/src/BSP;sdk/src/FWlib;sdk/src/StartUP/ing916;sdk/src/Tools;sdk/src</IncludePath>
+              <IncludePath>.\src\common;.\src\IAP_BSP;.\src\IAP;sdk/bundles/extension/inc;sdk/bundles/extension/inc/os;sdk/src/BSP;sdk/src/FWlib;sdk/src/StartUP/ing916;sdk/src/Tools;sdk/src</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -404,6 +404,16 @@
               <FilePath>.\src\IAP\IAP_916.c</FilePath>
             </File>
             <File>
+              <FileName>IAP_Transport.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\IAP\IAP_Transport.c</FilePath>
+            </File>
+            <File>
+              <FileName>IAP_Application.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\IAP\IAP_Application.c</FilePath>
+            </File>
+            <File>
               <FileName>IAP_FLASH_MAP.H</FileName>
               <FileType>5</FileType>
               <FilePath>.\src\IAP\IAP_FLASH_MAP.H</FilePath>
@@ -427,6 +437,16 @@
               <FileName>symdefs.m</FileName>
               <FileType>3</FileType>
               <FilePath>sdk\bundles\extension\ING9168xx\symdefs.m</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>COMMON</GroupName>
+          <Files>
+            <File>
+              <FileName>crc16.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\common\crc16.c</FilePath>
             </File>
           </Files>
         </Group>

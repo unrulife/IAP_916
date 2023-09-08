@@ -49,7 +49,7 @@ typedef struct __attribute__((packed)){
     IAP_AppVerInfoTypedef verInfo;
 } IAP_FlashVerInfo_t;
 
-uint16_t getCRC(uint8_t *buffer, uint16_t len);
+void AppJumpToBoot(void);
 extern void Uart_Send_Complete_Check(void);
 void IAP_Init(void);
 
