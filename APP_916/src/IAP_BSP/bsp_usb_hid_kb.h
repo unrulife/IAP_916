@@ -74,8 +74,8 @@ typedef enum
         .usbSubClass = 0x00, \
         .usbProto = 0x00, \
         .ep0Mps = USB_EP0_MPS, \
-        .vendor = 0xFFFF, \
-        .product = 0xFA28, \
+        .vendor = 0x36B0, \
+        .product = 0x0102, \
         .release = 0x00, \
         .iManufacturer = USB_STRING_MANUFACTURER_IDX, \
         .iProduct = USB_STRING_PRODUCT_IDX, \
