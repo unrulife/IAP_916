@@ -377,9 +377,11 @@ typedef struct __attribute__((packed))
 #define CTL_REPORT_ID       0x2F // REPORT ID
 #define MAX_REPORT_SIZE     63   // WITHOUT REPORT ID.
 
-/* 低层每次中断发送的长度为64字节，其中第一字节必须是report id，所以有效字节是后续63字节，所以IN和OUT均设为63.
+#define KB_REPORT_ID        0x06 
+
+/* 底层每次中断发送的长度为64字节，其中第一字节必须是report id，所以有效字节是后续63字节，所以IN和OUT均设为63.
  */
-#define USB_HID_CTL_REPORT_DESCRIPTOR_SIZE (29)
+#define USB_HID_CTL_REPORT_DESCRIPTOR_SIZE (29+25)
 #define USB_HID_CTL_REPORT_DESCRIPTOR {  \
     0x06, 0x00, 0xFF,  /* Usage Page (Vendor Defined 0xFF00) */   \
     0x09, 0x01,        /* Usage (0x01) */   \
@@ -394,155 +396,148 @@ typedef struct __attribute__((packed))
     0x09, 0x01,        /*   Usage (0x01) */   \
     0x95, MAX_REPORT_SIZE,        /*   Report Count (63) */   \
     0x91, 0x02,        /*   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile) */   \
-    0xC0              /* End Collection */   \
+    0xC0,              /* End Collection */   \
     /* 29 bytes */   \
+    0x05, 0x01,        /* GLOBAL_USAGE_PAGE(Generic Desktop Controls)     */  \
+    0x09, 0x06,        /* LOCAL_USAGE(Keyboard)     */  \
+    0xA1, 0x01,        /* MAIN_COLLECTION(Application)     */  \
+    0x85, KB_REPORT_ID,/* GLOBAL_REPORT_ID     */  \
+    0x05, 0x07,        /* GLOBAL_USAGE_PAGE(Keyboard/Keypad)     */  \
+    0x19, 0x04,        /* LOCAL_USAGE_MINIMUM(4)     */  \
+    0x29, 0x70,        /* LOCAL_USAGE_MAXIMUM(112)     */  \
+    0x15, 0x00,        /* GLOBAL_LOGICAL_MINIMUM(0)     */  \
+    0x25, 0x01,        /* GLOBAL_LOCAL_MAXIMUM(1)     */  \
+    0x75, 0x01,        /* GLOBAL_REPORT_SIZE(1)     */  \
+    0x95, 0x78,        /* GLOBAL_REPORT_COUNT(120)     */  \
+    0x81, 0x02,        /* MAIN_INPUT(data var absolute NoWrap linear PreferredState NoNullPosition NonVolatile )    Input 18.0 */  \
+    0xC0               /* MAIN_COLLECTION_END */  \
+    /* 25 bytes */   \
 }
-
-/* 如果OUT的包长定为4095，则PC端应用层每次发送包长均为4096字节（多一字节的reportID），windows底层会自动拆包，按照MPS=64一包一包发送，总共发送64包，
- * 即设备端会回调64次，需要自行组包。设备端是否也可以按照4096去产生中断提示，需要研究usb驱动低层dma接收的方式，有可能行，也有可能不行，目前以项目进度
- * 为准，先不研究这里，后续有时间再研究。下面的报告描述符暂时保留。
- */
-// #define USB_HID_CTL_REPORT_DESCRIPTOR_SIZE (30)
-// #define USB_HID_CTL_REPORT_DESCRIPTOR {  \
-//     0x06, 0x00, 0xFF,  /* Usage Page (Vendor Defined 0xFF00) */   \
-//     0x09, 0x01,        /* Usage (0x01) */   \
-//     0xA1, 0x01,        /* Collection (Application) */   \
-//     0x85, 0x07,        /*   Report ID (7) */   \
-//     0x09, 0x01,        /*   Usage (0x01) */   \
-//     0x15, 0x00,        /*   Logical Minimum (0) */   \
-//     0x26, 0xFF, 0x00,  /*   Logical Maximum (255) */   \
-//     0x95, 0x3F,        /*   Report Count (63) */   \
-//     0x75, 0x08,        /*   Report Size (8) */   \
-//     0x81, 0x02,        /*   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position) */   \
-//     0x09, 0x01,        /*   Usage (0x01) */   \
-//     0x96, 0xFF, 0x0F,  /*   Report Count (4095) */   \
-//     0x91, 0x02,        /*   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile) */   \
-//     0xC0               /* End Collection */   \
-//     /* 30 bytes */   \
-// }
 
 #endif
 
 // =======================================================================================
 #if KB_DESCRIPTOR_EN
-typedef enum {
-    HID_KEYB_A                             = 4, 
-    HID_KEYB_B                             = 5, 
-    HID_KEYB_C                             = 6, 
-    HID_KEYB_D                             = 7, 
-    HID_KEYB_E                             = 8, 
-    HID_KEYB_F                             = 9, 
-    HID_KEYB_G                             = 10,
-    HID_KEYB_H                             = 11,
-    HID_KEYB_I                             = 12,
-    HID_KEYB_J                             = 13,
-    HID_KEYB_K                             = 14,
-    HID_KEYB_L                             = 15,
-    HID_KEYB_M                             = 16,
-    HID_KEYB_N                             = 17,
-    HID_KEYB_O                             = 18,
-    HID_KEYB_P                             = 19,
-    HID_KEYB_Q                             = 20,
-    HID_KEYB_R                             = 21,
-    HID_KEYB_S                             = 22,
-    HID_KEYB_T                             = 23,
-    HID_KEYB_U                             = 24,
-    HID_KEYB_V                             = 25,
-    HID_KEYB_W                             = 26,
-    HID_KEYB_X                             = 27,
-    HID_KEYB_Y                             = 28,
-    HID_KEYB_Z                             = 29,
-    HID_KEYB_1                             = 30,
-    HID_KEYB_2                             = 31,
-    HID_KEYB_3                             = 32,
-    HID_KEYB_4                             = 33,
-    HID_KEYB_5                             = 34,
-    HID_KEYB_6                             = 35,
-    HID_KEYB_7                             = 36,
-    HID_KEYB_8                             = 37,
-    HID_KEYB_9                             = 38,
-    HID_KEYB_0                             = 39,
-    HID_KEYB_ENTER                     = 40,
-    HID_KEYB_ESCAPE                    = 41,
-    HID_KEYB_BACKSPACE             = 42,
-    HID_KEYB_TAB                         = 43,
-    HID_KEYB_SPACEBAR                = 44,
-    HID_KEYB_UNDERSCORE            = 45,
-    HID_KEYB_PLUS                        = 46,
-    HID_KEYB_OPEN_BRACKET        = 47,
-    HID_KEYB_CLOSE_BRACKET     = 48,
-    HID_KEYB_BACKSLASH             = 49,
-    HID_KEYB_ASH                         = 50,
-    HID_KEYB_COLON                     = 51,
-    HID_KEYB_QUOTE                     = 52,
-    HID_KEYB_TILDE                     = 53,
-    HID_KEYB_COMMA                     = 54,
-    HID_KEYB_DOT                         = 55,
-    HID_KEYB_SLASH                     = 56,
-    HID_KEYB_CAPS_LOCK             = 57,
-    HID_KEYB_F1                            = 58,
-    HID_KEYB_F2                            = 59,
-    HID_KEYB_F3                            = 60,
-    HID_KEYB_F4                            = 61,
-    HID_KEYB_F5                            = 62,
-    HID_KEYB_F6                            = 63,
-    HID_KEYB_F7                            = 64,
-    HID_KEYB_F8                            = 65,
-    HID_KEYB_F9                            = 66,
-    HID_KEYB_F10                         = 67,
-    HID_KEYB_F11                         = 68,
-    HID_KEYB_F12                         = 69,
-    HID_KEYB_PRINTSCREEN         = 70,
-    HID_KEYB_SCROLL_LOCK         = 71,
-    HID_KEYB_PAUSE                     = 72,
-    HID_KEYB_INSERT                    = 73,
-    HID_KEYB_HOME                        = 74,
-    HID_KEYB_PAGEUP                    = 75,
-    HID_KEYB_DELETE                    = 76,
-    HID_KEYB_END                         = 77,
-    HID_KEYB_PAGEDOWN                = 78,
-    HID_KEYB_RIGHT                     = 79,
-    HID_KEYB_LEFT                        = 80,
-    HID_KEYB_DOWN                        = 81,
-    HID_KEYB_UP                            = 82,
+typedef enum
+{
+    HID_KEYB_A = 4,
+    HID_KEYB_B = 5,
+    HID_KEYB_C = 6,
+    HID_KEYB_D = 7,
+    HID_KEYB_E = 8,
+    HID_KEYB_F = 9,
+    HID_KEYB_G = 10,
+    HID_KEYB_H = 11,
+    HID_KEYB_I = 12,
+    HID_KEYB_J = 13,
+    HID_KEYB_K = 14,
+    HID_KEYB_L = 15,
+    HID_KEYB_M = 16,
+    HID_KEYB_N = 17,
+    HID_KEYB_O = 18,
+    HID_KEYB_P = 19,
+    HID_KEYB_Q = 20,
+    HID_KEYB_R = 21,
+    HID_KEYB_S = 22,
+    HID_KEYB_T = 23,
+    HID_KEYB_U = 24,
+    HID_KEYB_V = 25,
+    HID_KEYB_W = 26,
+    HID_KEYB_X = 27,
+    HID_KEYB_Y = 28,
+    HID_KEYB_Z = 29,
+    HID_KEYB_1 = 30,
+    HID_KEYB_2 = 31,
+    HID_KEYB_3 = 32,
+    HID_KEYB_4 = 33,
+    HID_KEYB_5 = 34,
+    HID_KEYB_6 = 35,
+    HID_KEYB_7 = 36,
+    HID_KEYB_8 = 37,
+    HID_KEYB_9 = 38,
+    HID_KEYB_0 = 39,
+    HID_KEYB_ENTER = 40,
+    HID_KEYB_ESCAPE = 41,
+    HID_KEYB_BACKSPACE = 42,
+    HID_KEYB_TAB = 43,
+    HID_KEYB_SPACEBAR = 44,
+    HID_KEYB_UNDERSCORE = 45,
+    HID_KEYB_PLUS = 46,
+    HID_KEYB_OPEN_BRACKET = 47,
+    HID_KEYB_CLOSE_BRACKET = 48,
+    HID_KEYB_BACKSLASH = 49,
+    HID_KEYB_ASH = 50,
+    HID_KEYB_COLON = 51,
+    HID_KEYB_QUOTE = 52,
+    HID_KEYB_TILDE = 53,
+    HID_KEYB_COMMA = 54,
+    HID_KEYB_DOT = 55,
+    HID_KEYB_SLASH = 56,
+    HID_KEYB_CAPS_LOCK = 57,
+    HID_KEYB_F1 = 58,
+    HID_KEYB_F2 = 59,
+    HID_KEYB_F3 = 60,
+    HID_KEYB_F4 = 61,
+    HID_KEYB_F5 = 62,
+    HID_KEYB_F6 = 63,
+    HID_KEYB_F7 = 64,
+    HID_KEYB_F8 = 65,
+    HID_KEYB_F9 = 66,
+    HID_KEYB_F10 = 67,
+    HID_KEYB_F11 = 68,
+    HID_KEYB_F12 = 69,
+    HID_KEYB_PRINTSCREEN = 70,
+    HID_KEYB_SCROLL_LOCK = 71,
+    HID_KEYB_PAUSE = 72,
+    HID_KEYB_INSERT = 73,
+    HID_KEYB_HOME = 74,
+    HID_KEYB_PAGEUP = 75,
+    HID_KEYB_DELETE = 76,
+    HID_KEYB_END = 77,
+    HID_KEYB_PAGEDOWN = 78,
+    HID_KEYB_RIGHT = 79,
+    HID_KEYB_LEFT = 80,
+    HID_KEYB_DOWN = 81,
+    HID_KEYB_UP = 82,
     HID_KEYB_KEYPAD_NUM_LOCK = 83,
-    HID_KEYB_KEYPAD_DIVIDE     = 84,
-    HID_KEYB_KEYPAD_AT             = 85,
+    HID_KEYB_KEYPAD_DIVIDE = 84,
+    HID_KEYB_KEYPAD_AT = 85,
     HID_KEYB_KEYPAD_MULTIPLY = 85,
-    HID_KEYB_KEYPAD_MINUS        = 86,
-    HID_KEYB_KEYPAD_PLUS         = 87,
-    HID_KEYB_KEYPAD_ENTER        = 88,
-    HID_KEYB_KEYPAD_1                = 89,
-    HID_KEYB_KEYPAD_2                = 90,
-    HID_KEYB_KEYPAD_3                = 91,
-    HID_KEYB_KEYPAD_4                = 92,
-    HID_KEYB_KEYPAD_5                = 93,
-    HID_KEYB_KEYPAD_6                = 94,
-    HID_KEYB_KEYPAD_7                = 95,
-    HID_KEYB_KEYPAD_8                = 96,
-    HID_KEYB_KEYPAD_9                = 97,
-    HID_KEYB_KEYPAD_0                = 98
+    HID_KEYB_KEYPAD_MINUS = 86,
+    HID_KEYB_KEYPAD_PLUS = 87,
+    HID_KEYB_KEYPAD_ENTER = 88,
+    HID_KEYB_KEYPAD_1 = 89,
+    HID_KEYB_KEYPAD_2 = 90,
+    HID_KEYB_KEYPAD_3 = 91,
+    HID_KEYB_KEYPAD_4 = 92,
+    HID_KEYB_KEYPAD_5 = 93,
+    HID_KEYB_KEYPAD_6 = 94,
+    HID_KEYB_KEYPAD_7 = 95,
+    HID_KEYB_KEYPAD_8 = 96,
+    HID_KEYB_KEYPAD_9 = 97,
+    HID_KEYB_KEYPAD_0 = 98
 } BSP_KEYB_KEYB_USAGE_ID_e;
 
-typedef enum {
-    HID_KEYB_MODIFIER_LEFT_CTRL         = 0x01,
-    HID_KEYB_MODIFIER_LEFT_SHIFT        = 0x02,
-    HID_KEYB_MODIFIER_LEFT_ALT            = 0x04,
-    HID_KEYB_MODIFIER_LEFT_UI             = 0x08,
-    HID_KEYB_MODIFIER_RIGHT_CTRL        = 0x10,
-    HID_KEYB_MODIFIER_RIGHT_SHIFT     = 0x20,
-    HID_KEYB_MODIFIER_RIGHT_ALT         = 0x40,
-    HID_KEYB_MODIFIER_RIGHT_UI            = 0x80
+typedef enum
+{
+    HID_KEYB_MODIFIER_LEFT_CTRL = 0x01,
+    HID_KEYB_MODIFIER_LEFT_SHIFT = 0x02,
+    HID_KEYB_MODIFIER_LEFT_ALT = 0x04,
+    HID_KEYB_MODIFIER_LEFT_UI = 0x08,
+    HID_KEYB_MODIFIER_RIGHT_CTRL = 0x10,
+    HID_KEYB_MODIFIER_RIGHT_SHIFT = 0x20,
+    HID_KEYB_MODIFIER_RIGHT_ALT = 0x40,
+    HID_KEYB_MODIFIER_RIGHT_UI = 0x80
 } BSP_KEYB_KEYB_MODIFIER_e;
 
-typedef enum {
-    HID_KEYB_LED_NUM_LOCK         = 0x01,
-    HID_KEYB_LED_CAPS_LOCK        = 0x02,
-    HID_KEYB_LED_SCROLL_LOCK    = 0x04,
-    HID_KEYB_LED_COMPOSE            = 0x08,
-    HID_KEYB_LED_KANA                 = 0x10
+typedef enum
+{
+    HID_KEYB_LED_NUM_LOCK = 0x01,
+    HID_KEYB_LED_CAPS_LOCK = 0x02,
+    HID_KEYB_LED_SCROLL_LOCK = 0x04,
+    HID_KEYB_LED_COMPOSE = 0x08,
+    HID_KEYB_LED_KANA = 0x10
 } BSP_KEYB_KEYB_LED_e;
-
 
 #define KEY_TABLE_LEN (6)
 typedef struct __attribute__((packed))

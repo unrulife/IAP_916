@@ -496,7 +496,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 						case EP_CTL_IN:
                         {
                             CtlReport.sendBusy = U_FALSE;
-                            // bsp_usb_hid_ctl_push_send_complete_to_user();
+                            bsp_usb_hid_ctl_push_send_complete_to_user();
                         }break;
 #endif
                     }
