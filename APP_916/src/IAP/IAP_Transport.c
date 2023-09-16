@@ -191,7 +191,7 @@ static IAP_TransportErr_t IAP_Transport_Dispatch(uint8_t *data, uint16_t len){
 }
 
 // AA C0 00 80 01 00 ERR BCC
-static USB_HID_CTL_STA_t IAP_Transport_Send_ACK(uint8_t err){
+static USB_HID_OperateSta_t IAP_Transport_Send_ACK(uint8_t err){
     IAP_Transport_ACK_t ACK;
     ACK.header   = IAP_TRANSPORT_HEADER;
     ACK.ctl_1    = 0xC0;   //up, ack
@@ -207,7 +207,7 @@ static uint8_t IAP_Transport_send_single_pack(uint8_t first_flag, uint16_t pack_
 
     // check payload length.
     if(payload_len > IAP_TRANSPORT_MAX_SEND_SINGLE_PAYLOAD){
-        return (uint8_t)USB_HID_STA_SIZE_TOO_LARGE;
+        return (uint8_t)USB_HID_ERROR_SIZE_TOO_LARGE;
     }
 
     // prepare data.

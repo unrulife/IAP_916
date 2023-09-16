@@ -130,21 +130,31 @@ static uint8_t IAP_CheckFlashVersionInfo(void){
 // ===================================================================================================
 
 static void APP_Task(void *pvParameters){
-    static int flag = 10;
+    static int flag = 3;
 
     while(1){
         vTaskDelay(pdMS_TO_TICKS(1000));
 #if 0
-        platform_printf("APP_Task:%d\n", flag);
+        // platform_printf("APP_Task:%d\n", flag);
         if(flag > 0){
             flag--;
         } else {
             if(flag == 0){
                 flag = -1;
-                platform_printf("go to boot\n");
-                bsp_usb_disable();
-                vTaskDelay(pdMS_TO_TICKS(500));
-                AppJumpToBoot();
+
+                uint8_t key_val[15] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+                key_val[0] = 0x04;
+                bsp_usb_hid_send_ext_key(key_val, 15);
+                vTaskDelay(pdMS_TO_TICKS(300));
+                key_val[0] = 0x00;
+                bsp_usb_hid_send_ext_key(key_val, 15);
+                platform_printf("send key.\n");
+
+
+                // platform_printf("go to boot\n");
+                // bsp_usb_disable();
+                // vTaskDelay(pdMS_TO_TICKS(500));
+                // AppJumpToBoot();
             }
         }
 #endif

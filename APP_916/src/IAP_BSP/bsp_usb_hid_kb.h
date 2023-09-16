@@ -7,10 +7,29 @@
 #define KB_DESCRIPTOR_EN    (1)
 #define MO_DESCRIPTOR_EN    (0)
 #define CTL_DESCRIPTOR_EN   (1)
+#define KB_EXT_DESCRP_EN    (1) // Keyboard with full keys
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef enum
+{
+    USB_STA_IDLE,
+    USB_STA_BUSY,
+} USB_HID_BusySta_t ;
+
+typedef enum
+{
+    USB_HID_ERROR_NONE,               /* > Operate success. */
+    USB_HID_ERROR_NOT_READY,          /* > USB is not ready. */
+    USB_HID_ERROR_BUSY,               /* > Last operating is running. */
+    USB_HID_ERROR_INVALID_PARAM,      /* > Input param error. */
+    USB_HID_ERROR_INACTIVE_EP,        /* > Inactive Endpoint. */
+    USB_HID_ERROR_INTERNAL_ERR,       /* > EP NUM TOO BIG OR INPUT BUFFER NOT ALIGN(4). */
+    USB_HID_ERROR_UNKNOW_ERR,         /* > Unknow error. */
+    USB_HID_ERROR_SIZE_TOO_LARGE,     /* > size too large. */
+}USB_HID_OperateSta_t;
 
 // the flag to enable disconnection(cable unplugged), valid only when DP and DM are powered by VBUS
 //#define FEATURE_DISCONN_DETECT
@@ -361,7 +380,7 @@ typedef struct __attribute__((packed))
     .ep = USB_EP_DIRECTION_IN(EP_CTL_IN), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
     .mps = EP_CTL_MPS_BYTES, \
-    .interval = 0xA \
+    .interval = 0x1 \
 }
 
 #define USB_EP_OUT_DESCRIPTOR_CTL \
@@ -371,7 +390,7 @@ typedef struct __attribute__((packed))
     .ep = USB_EP_DIRECTION_OUT(EP_CTL_OUT), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
     .mps = EP_CTL_MPS_BYTES, \
-    .interval = 0xA \
+    .interval = 0x1 \
 }
 
 #define CTL_REPORT_ID       0x2F // REPORT ID
@@ -515,7 +534,8 @@ typedef enum
     HID_KEYB_KEYPAD_7 = 95,
     HID_KEYB_KEYPAD_8 = 96,
     HID_KEYB_KEYPAD_9 = 97,
-    HID_KEYB_KEYPAD_0 = 98
+    HID_KEYB_KEYPAD_0 = 98,
+    HID_KEYB_KEYPAD_DOT = 99
 } BSP_KEYB_KEYB_USAGE_ID_e;
 
 typedef enum
@@ -547,9 +567,15 @@ typedef struct __attribute__((packed))
     uint8_t key_table[KEY_TABLE_LEN];
 }BSP_KEYB_REPORT_s;
 
+#define EXT_KEY_TABLE_LEN (15)
+
 typedef struct
 {
     BSP_KEYB_REPORT_s report;
+#if KB_EXT_DESCRP_EN
+    uint8_t ext_key_table[EXT_KEY_TABLE_LEN];
+    uint8_t ext_in_use;
+#endif
     uint8_t led_state;
     uint8_t pending;
 }BSP_KEYB_DATA_s;
@@ -578,18 +604,6 @@ typedef struct
 
 // =======================================================================================
 #if CTL_DESCRIPTOR_EN
-typedef enum
-{
-    USB_HID_STA_SUCCESS,            /* > Operate success. */
-    USB_HID_STA_NOT_READY,          /* > USB is not ready. */
-    USB_HID_STA_BUSY,               /* > Last operating is running. */
-    USB_HID_STA_INVALID_PARAM,      /* > Input param error. */
-    USB_HID_STA_INACTIVE_EP,        /* > Inactive Endpoint. */
-    USB_HID_STA_INTERNAL_ERR,       /* > EP NUM TOO BIG OR INPUT BUFFER NOT ALIGN(4). */
-    USB_HID_STA_UNKNOW_ERR,         /* > Unknow error. */
-    USB_HID_STA_SIZE_TOO_LARGE,     /* > size too large. */
-}USB_HID_CTL_STA_t;
-
 typedef struct
 {
     uint8_t pending;
@@ -648,9 +662,30 @@ extern void bsp_usb_handle_hid_mouse_report(int8_t x, int8_t y, uint8_t btn);
 #endif
 // =======================================================================================
 #if CTL_DESCRIPTOR_EN
-USB_HID_CTL_STA_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len);
+
+USB_HID_OperateSta_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len);
 void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_complete_cb_t cb);
 void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb);
+#if KB_EXT_DESCRP_EN
+/**
+ * @brief Pre-set extend key value, but don't send it to usb endpoint. Use bsp_usb_hid_keyboard_extend_report_start
+ * to trigger sending. You can call the this function multiple times to load multiple keys, and you only need to call 
+ * the bsp_usb_hid_keyboard_extend_report_start function once to trigger the sending process of all the loaded keys. 
+ * 
+ * @param key  ref@BSP_KEYB_KEYB_USAGE_ID_e
+ * @param press 1:pressed, 0:released.
+ */
+void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press);
+/**
+ * @brief Send pre-set extend key value to usb endpoint. ref: bsp_usb_hid_keyboard_extend_report_set_key_value
+ * Note that if calling this function returns USB_HID_ERROR_BUSY, you will have to call it again at another time to ensure 
+ * that the key value was successfully sent. 
+ * 
+ * @return USB_HID_OperateSta_t 
+ */
+USB_HID_OperateSta_t bsp_usb_hid_keyboard_extend_report_start(void);
+#endif
+
 #endif
 
 

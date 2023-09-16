@@ -62,7 +62,7 @@ static bsp_usb_hid_ctl_send_complete_cb_t     usb_hid_ctl_send_complete_callback
 static void bsp_usb_hid_ctl_push_rx_data_to_user(uint8_t *data, uint16_t len);
 static void bsp_usb_hid_ctl_push_send_complete_to_user(void);
 static USB_ERROR_TYPE_E bsp_usp_hid_ctl_rx_data_trigger(uint8_t printFLAG);
-static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t printFLAG, uint8_t *data, uint16_t len);
+static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t reportID, uint8_t *data, uint16_t len);
 #endif
 
 // =============================================================================================================
@@ -454,7 +454,12 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         #endif
 
                         /* Push rx data to user callback. */
-                        bsp_usb_hid_ctl_push_rx_data_to_user(&DataRecvBuf[1], event->data.size-1);
+                        if (CTL_REPORT_ID == DataRecvBuf[0]){
+                            bsp_usb_hid_ctl_push_rx_data_to_user(&DataRecvBuf[1], event->data.size-1);
+                        } else if(KB_REPORT_ID == DataRecvBuf[0]){
+                            platform_printf("KB RECV[%d]: ", event->data.size-1);
+                            printf_hexdump(&DataRecvBuf[1], event->data.size);
+                        }
 
                         /* Start next rx proc. */
                         bsp_usp_hid_ctl_rx_data_trigger(2);
@@ -517,6 +522,24 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
 // ===================================================================================================
 #if KB_DESCRIPTOR_EN
+
+USB_HID_BusySta_t bsp_usb_hid_keyboard_basic_report_status_get(void){
+    if (U_TRUE == KeybReport.pending){
+        return USB_STA_BUSY;
+    }
+    return USB_STA_IDLE;
+}
+
+// send basic key value.
+USB_HID_OperateSta_t bsp_usb_hid_keyboard_basic_report_start(void){
+    if (USB_STA_BUSY == bsp_usb_hid_keyboard_basic_report_status_get()){
+        return USB_HID_ERROR_BUSY;
+    }
+    USB_SendData(USB_EP_DIRECTION_IN(EP_KB_IN), (void*)&(KeybReport.report), sizeof(BSP_KEYB_REPORT_s), 0);
+    KeybReport.pending = U_TRUE;
+    return USB_HID_ERROR_NONE;
+}
+
 void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press)
 {
     uint32_t j;
@@ -635,47 +658,52 @@ static USB_ERROR_TYPE_E bsp_usp_hid_ctl_rx_data_trigger(uint8_t printFLAG){
     return USB_RecvData(ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_OUT)].ep, DataRecvBuf, ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_OUT)].mps, 0);
 }
 
-static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t printFLAG, uint8_t *data, uint16_t len){
-    USB_DEBUG("===> Sending(%d) ...\n", printFLAG);
-    DataSendBuf[0] = CTL_REPORT_ID;
+static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t reportID, uint8_t *data, uint16_t len){
+    USB_DEBUG("===> Sending[RID=0x%02X] ...\n", reportID);
+    DataSendBuf[0] = reportID;
     memcpy(&DataSendBuf[1], data, len);
-    return USB_SendData(ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].ep, DataSendBuf, ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].mps, 0);
+    uint8_t size = len+1;
+    size = (size <= ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].mps) ? (size) : (ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].mps);
+    return USB_SendData(ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].ep, DataSendBuf, size, 0);
 }
 
-
-USB_HID_CTL_STA_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len){
+static USB_HID_OperateSta_t bsp_usb_hid_report_send(uint8_t reportID, uint8_t *data, uint16_t len){
 
     if(!CtlReport.ready){
-        return USB_HID_STA_NOT_READY;
+        return USB_HID_ERROR_NOT_READY;
     }
 
     if(CtlReport.sendBusy){
-        return USB_HID_STA_BUSY;
+        return USB_HID_ERROR_BUSY;
     }
 
     if( data == NULL || len == 0 || len > MAX_REPORT_SIZE ){
-        return USB_HID_STA_INVALID_PARAM;
+        return USB_HID_ERROR_INVALID_PARAM;
     }
 
-    USB_HID_CTL_STA_t error = USB_HID_STA_SUCCESS;
+    USB_HID_OperateSta_t error = USB_HID_ERROR_NONE;
 
-    USB_ERROR_TYPE_E status = bsp_usp_hid_ctl_tx_data_trigger(1, data, len);
+    USB_ERROR_TYPE_E status = bsp_usp_hid_ctl_tx_data_trigger(reportID, data, len);
     switch(status){
         case USB_ERROR_NONE:
             CtlReport.sendBusy = U_TRUE;
             break;
         case USB_ERROR_INVALID_INPUT:
-            error = USB_HID_STA_INTERNAL_ERR;
+            error = USB_HID_ERROR_INTERNAL_ERR;
             break;
         case USB_ERROR_INACTIVE_EP:
-            error = USB_HID_STA_INACTIVE_EP;
+            error = USB_HID_ERROR_INACTIVE_EP;
             break;
         default:
-            error = USB_HID_STA_UNKNOW_ERR;
+            error = USB_HID_ERROR_UNKNOW_ERR;
             break;
     }
 
     return error;
+}
+
+USB_HID_OperateSta_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len){
+    return bsp_usb_hid_report_send(CTL_REPORT_ID, data, len);
 }
 
 void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_complete_cb_t cb){
@@ -685,6 +713,38 @@ void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_comple
 void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb){
     usb_hid_ctl_recv_callback = cb;
 }
+
+#if KB_EXT_DESCRP_EN
+// For keyboard.
+static USB_HID_OperateSta_t bsp_usb_hid_send_ext_key(uint8_t *data, uint16_t len){
+    return bsp_usb_hid_report_send(KB_REPORT_ID, data, len);
+}
+
+USB_HID_BusySta_t bsp_usb_hid_keyboard_extend_report_status_get(void){
+    if (U_TRUE == CtlReport.sendBusy){
+        return USB_STA_BUSY;
+    }
+    return USB_STA_IDLE;
+}
+
+USB_HID_OperateSta_t bsp_usb_hid_keyboard_extend_report_start(void){
+    return bsp_usb_hid_send_ext_key(KeybReport.ext_key_table, sizeof(KeybReport.ext_key_table));
+}
+
+void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press){
+    uint8_t index = ((key - HID_KEYB_A) / 8);
+    uint8_t offset = ((key - HID_KEYB_A) % 8);
+    if (press){
+        KeybReport.ext_key_table[index] |= (1<<offset);
+    } else {
+        KeybReport.ext_key_table[index] &= ~(1<<offset);
+    }
+}
+
+#endif
+
+
+
 #endif
 
 // ===================================================================================================
