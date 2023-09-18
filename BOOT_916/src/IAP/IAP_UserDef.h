@@ -23,6 +23,10 @@
 #define USER_DEF_CHIP_ID                "ING91683C_TB"          // max = 15bytes.
 #define USER_DEF_ITEM_STR               "INGCHIPS_IAP_TEST_APP" // max = 23bytes.
 
+// boot usb information.
+#define USER_DEF_USB_VID                (0x36B0)
+#define USER_DEF_USB_PID                (0x0101)
+#define USER_DEF_IAP_REPORT_ID          (0x3F)
 
 #endif
 

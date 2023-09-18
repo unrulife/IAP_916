@@ -3,9 +3,28 @@
 
 #include <stdint.h>
 #include "ingsoc.h"
+#include "IAP_UserDef.h"
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifndef USER_DEF_USB_VID
+#define MY_USB_VID          (0x36B0)
+#else
+#define MY_USB_VID          USER_DEF_USB_VID
+#endif
+
+#ifndef USER_DEF_USB_PID
+#define MY_USB_PID          (0x0101)
+#else
+#define MY_USB_PID          USER_DEF_USB_PID
+#endif
+
+#ifndef USER_DEF_IAP_REPORT_ID
+#define CTL_REPORT_ID       (0x3F)
+#else
+#define CTL_REPORT_ID       USER_DEF_IAP_REPORT_ID
 #endif
 
 // the flag to enable disconnection(cable unplugged), valid only when DP and DM are powered by VBUS
@@ -70,8 +89,8 @@ typedef enum
         .usbSubClass = 0x00, \
         .usbProto = 0x00, \
         .ep0Mps = USB_EP0_MPS, \
-        .vendor = 0x36B0, \
-        .product = 0x0101, \
+        .vendor = MY_USB_VID, \
+        .product = MY_USB_PID, \
         .release = 0x00, \
         .iManufacturer = USB_STRING_MANUFACTURER_IDX, \
         .iProduct = USB_STRING_PRODUCT_IDX, \
@@ -159,7 +178,6 @@ typedef struct __attribute__((packed))
     .interval = 0x1 \
 }
 
-#define REPORT_ID           0x3F // 将报告ID改成0x3F吧，用来指代后续数据长度为63字节。
 #define MAX_REPORT_SIZE     63   // WITHOUT REPORT ID.
 
 /* 低层每次中断发送的长度为64字节，其中第一字节必须是report id，所以有效字节是后续63字节，所以IN和OUT均设为63.
@@ -169,7 +187,7 @@ typedef struct __attribute__((packed))
     0x06, 0x00, 0xFF,  /* Usage Page (Vendor Defined 0xFF00) */   \
     0x09, 0x01,        /* Usage (0x01) */   \
     0xA1, 0x01,        /* Collection (Application) */   \
-    0x85, REPORT_ID,   /*   Report ID (7) */   \
+    0x85, CTL_REPORT_ID,   /*   Report ID (7) */   \
     0x09, 0x01,        /*   Usage (0x01) */   \
     0x15, 0x00,        /*   Logical Minimum (0) */   \
     0x26, 0xFF, 0x00,  /*   Logical Maximum (255) */   \

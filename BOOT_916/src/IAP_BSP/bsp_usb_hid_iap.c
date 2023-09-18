@@ -58,7 +58,7 @@ static USB_ERROR_TYPE_E bsp_usp_hid_iap_rx_data_trigger(uint8_t printFLAG){
 
 static USB_ERROR_TYPE_E bsp_usp_hid_iap_tx_data_trigger(uint8_t printFLAG, uint8_t *data, uint16_t len){
     USB_DEBUG("===> Sending(%d) ...\n", printFLAG);
-    DataSendBuf[0] = REPORT_ID;
+    DataSendBuf[0] = CTL_REPORT_ID;
     memcpy(&DataSendBuf[1], data, len);
     return USB_SendData(ConfigDescriptor.ep_iap[EP_IAP_IN-1].ep, DataSendBuf, ConfigDescriptor.ep_iap[EP_IAP_IN-1].mps, 0);
 }
