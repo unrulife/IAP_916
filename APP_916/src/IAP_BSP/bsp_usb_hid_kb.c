@@ -347,7 +347,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                 case CTL_INTERFACE_IDX:
                                 {
                                     CtlReport.pending = U_TRUE;
-                                    CtlReport.ready = U_FALSE;
+                                    // CtlReport.ready = U_FALSE;
                                 }break;
 #endif                          
                                 default:

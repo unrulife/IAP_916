@@ -301,7 +301,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                             {
                                 case IAP_INTERFACE_IDX:
                                 {
-                                    IapReport.ready = U_FALSE;
+                                    // IapReport.ready = U_FALSE;
                                     // IapReport.pending = U_TRUE;
                                 }break;
                             }
