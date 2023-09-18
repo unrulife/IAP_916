@@ -682,19 +682,20 @@ extern void bsp_usb_handle_hid_mouse_report(int8_t x, int8_t y, uint8_t btn);
 // =======================================================================================
 #if CTL_DESCRIPTOR_EN
 
-USB_HID_OperateSta_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len);
-void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_complete_cb_t cb);
-void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb);
+extern USB_HID_OperateSta_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len);
+extern void bsp_usb_hid_ctl_send_complete_callback_register(bsp_usb_hid_ctl_send_complete_cb_t cb);
+extern void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb);
+
 #if KB_EXT_DESCRP_EN
 /**
  * @brief Pre-set extend key value, but don't send it to usb endpoint. Use bsp_usb_hid_keyboard_extend_report_start
- * to trigger sending. You can call the this function multiple times to load multiple keys, and you only need to call 
+ * to trigger sending. You can call this function multiple times to load multiple keys, and you only need to call 
  * the bsp_usb_hid_keyboard_extend_report_start function once to trigger the sending process of all the loaded keys. 
  * 
  * @param key  ref@BSP_KEYB_KEYB_USAGE_ID_e
  * @param press 1:pressed, 0:released.
  */
-void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press);
+extern void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press);
 /**
  * @brief Send pre-set extend key value to usb endpoint. ref: bsp_usb_hid_keyboard_extend_report_set_key_value
  * Note that if calling this function returns USB_HID_ERROR_BUSY, you will have to call it again at another time to ensure 
@@ -702,7 +703,7 @@ void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press
  * 
  * @return USB_HID_OperateSta_t 
  */
-USB_HID_OperateSta_t bsp_usb_hid_keyboard_extend_report_start(void);
+extern USB_HID_OperateSta_t bsp_usb_hid_keyboard_extend_report_start(void);
 #endif
 
 #endif

@@ -540,6 +540,10 @@ USB_HID_OperateSta_t bsp_usb_hid_keyboard_basic_report_start(void){
     return USB_HID_ERROR_NONE;
 }
 
+void bsp_usb_hid_keyboard_basic_report_set_key_value(uint8_t key, uint8_t press){
+    
+}
+
 void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press)
 {
     uint32_t j;
