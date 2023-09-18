@@ -3,6 +3,26 @@
 
 #include <stdint.h>
 #include "ingsoc.h"
+#include "IAP_UserDef.h"
+
+#ifndef USER_DEF_USB_VID
+#define MY_USB_VID          (0x36B0)
+#else
+#define MY_USB_VID          USER_DEF_USB_VID
+#endif
+
+#ifndef USER_DEF_USB_PID
+#define MY_USB_PID          (0x0102)
+#else
+#define MY_USB_PID          USER_DEF_USB_PID
+#endif
+
+#ifndef USER_DEF_IAP_REPORT_ID
+#define CTL_REPORT_ID       (0x2F)
+#else
+#define CTL_REPORT_ID       USER_DEF_IAP_REPORT_ID
+#endif
+
 
 #define KB_DESCRIPTOR_EN    (1)
 #define MO_DESCRIPTOR_EN    (0)
@@ -93,8 +113,8 @@ typedef enum
         .usbSubClass = 0x00, \
         .usbProto = 0x00, \
         .ep0Mps = USB_EP0_MPS, \
-        .vendor = 0xFFFF, \
-        .product = 0xFA28, \
+        .vendor = MY_USB_VID, \
+        .product = MY_USB_PID, \
         .release = 0x00, \
         .iManufacturer = USB_STRING_MANUFACTURER_IDX, \
         .iProduct = USB_STRING_PRODUCT_IDX, \
@@ -393,7 +413,6 @@ typedef struct __attribute__((packed))
     .interval = 0x1 \
 }
 
-#define CTL_REPORT_ID       0x2F // REPORT ID
 #define MAX_REPORT_SIZE     63   // WITHOUT REPORT ID.
 
 #define KB_REPORT_ID        0x06 

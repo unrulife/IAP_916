@@ -16,6 +16,11 @@
 #define USER_DEF_SW_VER                 "V2.2.5"                // Vx.y.z [x,y,z = 0~9]
 
 
+// usb information.
+#define USER_DEF_USB_VID                (0x36B0)
+#define USER_DEF_USB_PID                (0x0102)
+#define USER_DEF_IAP_REPORT_ID          (0x2F)
+
 
 #endif
 
