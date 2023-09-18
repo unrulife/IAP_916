@@ -113,13 +113,13 @@ static uint8_t IAP_CheckFlashVersionInfo(void){
     if( 6 != strlen(iap_HW) || 
         memcmp(versionInfo.verInfo.HW, iap_HW, 6) != 0)
     {
-        platform_printf("HW different.\n");
+        platform_printf("\n\n===> HW different !!! <===\n\n");
         return 4;
     }
     if( 6 != strlen(iap_SW) || 
         memcmp(versionInfo.verInfo.SW, iap_SW, 6) != 0)
     {
-        platform_printf("SW different.\n");
+        platform_printf("\n\n===> SW different !!! <===\n\n");
         return 5;
     }
 
