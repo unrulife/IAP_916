@@ -33,6 +33,9 @@
 extern "C" {
 #endif
 
+#define U_SUCCESS   (0)
+#define U_FAIL      (1)
+
 typedef enum
 {
     USB_STA_IDLE,
@@ -250,7 +253,7 @@ typedef struct __attribute__((packed))
     .ep = USB_EP_DIRECTION_IN(EP_KB_IN), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
     .mps = EP_KB_MPS_BYTES, \
-    .interval = 0xA \
+    .interval = 0x1 \
 }
 
 #define USB_HID_KB_REPORT_DESCRIPTOR_SIZE (63)
@@ -578,6 +581,11 @@ typedef enum
     HID_KEYB_LED_KANA = 0x10
 } BSP_KEYB_KEYB_LED_e;
 
+typedef enum {
+    KEY_TYPE_GENERAL,
+    KEY_TYPE_MODIFIER,
+} BSP_HID_KB_Type_t;
+
 #define KEY_TABLE_LEN (6)
 typedef struct __attribute__((packed))
 {
@@ -593,10 +601,12 @@ typedef struct
     BSP_KEYB_REPORT_s report;
 #if KB_EXT_DESCRP_EN
     uint8_t ext_key_table[EXT_KEY_TABLE_LEN];
-    uint8_t ext_in_use;
+    uint8_t extend_flag;
+    uint8_t basic_send_flag;
+    uint8_t extend_send_flag;
 #endif
     uint8_t led_state;
-    uint8_t pending;
+    uint8_t sendBusy;
 }BSP_KEYB_DATA_s;
 #endif
 
@@ -625,7 +635,6 @@ typedef struct
 #if CTL_DESCRIPTOR_EN
 typedef struct
 {
-    uint8_t pending;
     uint8_t preReady;
     uint8_t ready;
     uint8_t sendBusy;
@@ -650,7 +659,7 @@ typedef void (* bsp_usb_hid_ctl_send_complete_cb_t)(void);
  * @param[in] press: 1: pressed, 0: released
  * @param[out] null. 
  */
-extern void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press);
+// extern void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press);
 /**
  * @brief interface API. send keyboard modifier report
  *
@@ -658,7 +667,7 @@ extern void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press);
  * @param[in] press: 1: pressed, 0: released
  * @param[out] null. 
  */
-extern void bsp_usb_handle_hid_keyb_modifier_report(BSP_KEYB_KEYB_MODIFIER_e modifier, uint8_t press);
+// extern void bsp_usb_handle_hid_keyb_modifier_report(BSP_KEYB_KEYB_MODIFIER_e modifier, uint8_t press);
 /**
  * @brief interface API. get keyboard led state
  *
@@ -695,7 +704,7 @@ extern void bsp_usb_hid_ctl_recv_callback_register(bsp_usb_hid_ctl_recv_cb_t cb)
  * @param key  ref@BSP_KEYB_KEYB_USAGE_ID_e
  * @param press 1:pressed, 0:released.
  */
-extern void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press);
+extern uint8_t bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press);
 /**
  * @brief Send pre-set extend key value to usb endpoint. ref: bsp_usb_hid_keyboard_extend_report_set_key_value
  * Note that if calling this function returns USB_HID_ERROR_BUSY, you will have to call it again at another time to ensure 
@@ -704,6 +713,17 @@ extern void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_
  * @return USB_HID_OperateSta_t 
  */
 extern USB_HID_OperateSta_t bsp_usb_hid_keyboard_extend_report_start(void);
+
+#define USE_SOF_TRIGGER_KB_SEND_EN      (1)
+
+#if USE_SOF_TRIGGER_KB_SEND_EN
+#else
+typedef void (* bsp_usb_hid_kb_basic_delay_send_cb_t)(void);
+typedef void (* bsp_usb_hid_kb_extend_delay_send_cb_t)(void);
+void bsp_usb_hid_kb_basic_delay_send_callback_register(bsp_usb_hid_kb_basic_delay_send_cb_t cb);
+extern void bsp_usb_hid_kb_extend_delay_send_callback_register(bsp_usb_hid_kb_extend_delay_send_cb_t cb);
+#endif
+extern void bsp_usb_hid_kb_key_report(BSP_HID_KB_Type_t type, uint8_t key, uint8_t press);
 #endif
 
 #endif

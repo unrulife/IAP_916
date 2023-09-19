@@ -11,6 +11,12 @@
 #define USB_DEBUG(...)      
 #endif
 
+#if 1
+#define USB_ERROR(...)	platform_printf(__VA_ARGS__)
+#else
+#define USB_ERROR(...)      
+#endif
+
 // =============================================================================================================
 
 const USB_DEVICE_DESCRIPTOR_REAL_T DeviceDescriptor __attribute__ ((aligned (4))) = USB_DEVICE_DESCRIPTOR;
@@ -37,7 +43,7 @@ BSP_USB_VAR_s UsbVar;
 // =============================================================================================================
 #if KB_DESCRIPTOR_EN
 const uint8_t ReportKeybDescriptor[] __attribute__ ((aligned (4))) = USB_HID_KB_REPORT_DESCRIPTOR;
-BSP_KEYB_DATA_s KeybReport __attribute__ ((aligned (4))) = {.pending = U_TRUE};
+BSP_KEYB_DATA_s KeybReport __attribute__ ((aligned (4))) = {.sendBusy = U_FALSE};
 #endif
 
 #if MO_DESCRIPTOR_EN
@@ -50,7 +56,6 @@ uint8_t DataRecvBuf[EP_CTL_MPS_BYTES] __attribute__ ((aligned (4)));
 uint8_t DataSendBuf[EP_CTL_MPS_BYTES] __attribute__ ((aligned (4)));
 const uint8_t ReportCtlDescriptor[] __attribute__ ((aligned (4))) = USB_HID_CTL_REPORT_DESCRIPTOR;
 BSP_CTL_DATA_s CtlReport __attribute__ ((aligned (4))) = {
-    .pending = U_TRUE, 
     .preReady = U_FALSE,
     .ready = U_FALSE,
     .sendBusy = U_FALSE
@@ -63,6 +68,10 @@ static void bsp_usb_hid_ctl_push_rx_data_to_user(uint8_t *data, uint16_t len);
 static void bsp_usb_hid_ctl_push_send_complete_to_user(void);
 static USB_ERROR_TYPE_E bsp_usp_hid_ctl_rx_data_trigger(uint8_t printFLAG);
 static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t reportID, uint8_t *data, uint16_t len);
+static void usb_reset_keyboard_init(void);
+#if USE_SOF_TRIGGER_KB_SEND_EN
+static void usb_sof_keyboard_send_check(void);
+#endif
 #endif
 
 // =============================================================================================================
@@ -77,6 +86,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
     {
         case USB_EVENT_DEVICE_RESET:
         {
+            usb_reset_keyboard_init();
             #ifdef FEATURE_DISCONN_DETECT
             platform_set_timer(bsp_usb_device_disconn_timeout,160);
             #endif
@@ -84,7 +94,10 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
         }break;
         case USB_EVENT_DEVICE_SOF:
         {
-            USB_DEBUG("#USB SOF\n");
+#if USE_SOF_TRIGGER_KB_SEND_EN
+            usb_sof_keyboard_send_check();
+#endif
+            // USB_DEBUG("#USB SOF\n");
             // handle sof, need enable interrupt in config.intmask
         }break;
         case USB_EVENT_DEVICE_SUSPEND:
@@ -334,20 +347,19 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 #if KB_DESCRIPTOR_EN                                
                                 case KB_INTERFACE_IDX:
                                 {
-                                    KeybReport.pending = U_TRUE;
+                                    // KeybReport.sendBusy = U_TRUE; // set idle.
                                 }break;
 #endif
 #if MO_DESCRIPTOR_EN                                
                                 case MO_INTERFACE_IDX:
                                 {
-                                    MouseReport.pending = U_TRUE;
+                                    // MouseReport.pending = U_TRUE; // set idle.
                                 }break;
 #endif                          
 #if CTL_DESCRIPTOR_EN                                
                                 case CTL_INTERFACE_IDX:
                                 {
-                                    CtlReport.pending = U_TRUE;
-                                    CtlReport.ready = U_FALSE;
+                                    // CtlReport.ready = U_FALSE; // set idle.
                                 }break;
 #endif                          
                                 default:
@@ -372,7 +384,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                             size = (setup->wLength < size) ? (setup->wLength) : size;
 
                                             status |= USB_SendData(0, (void*)&ReportKeybDescriptor, size, 0);
-                                            KeybReport.pending = U_FALSE;
+                                            KeybReport.sendBusy = U_FALSE;
 
                                             USB_DEBUG("#####USB Report Keyb Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
                                         }break;
@@ -395,7 +407,6 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                             size = (setup->wLength < size) ? (setup->wLength) : size;
 
                                             status |= USB_SendData(0, (void*)&ReportCtlDescriptor, size, 0);
-                                            CtlReport.pending = U_FALSE;
                                             CtlReport.preReady = U_TRUE;
 											USB_DEBUG("#####USB Report Ctl Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
                                         }break;
@@ -448,6 +459,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                     USB_DEBUG("##USB RECV END: ep(%d)\n", event->data.ep);
 #if CTL_DESCRIPTOR_EN
                     if(event->data.ep == EP_CTL_OUT){
+                        CtlReport.ready = U_TRUE;
 
                         #if 0
                         platform_printf("(%d)RECV[%d]: ",event->data.ep, event->data.size);printf_hexdump(DataRecvBuf, event->data.size);
@@ -488,7 +500,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 #if KB_DESCRIPTOR_EN                        
                         case EP_KB_IN:
                         {
-                            KeybReport.pending = U_FALSE;
+                            KeybReport.sendBusy = U_FALSE;
                         }break;
 #endif
 #if MO_DESCRIPTOR_EN                        
@@ -523,31 +535,103 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 // ===================================================================================================
 #if KB_DESCRIPTOR_EN
 
-USB_HID_BusySta_t bsp_usb_hid_keyboard_basic_report_status_get(void){
-    if (U_TRUE == KeybReport.pending){
+// check basic report busy status.
+static USB_HID_BusySta_t bsp_usb_hid_keyboard_basic_report_status_get(void){
+    if (U_TRUE == KeybReport.sendBusy){
         return USB_STA_BUSY;
     }
     return USB_STA_IDLE;
 }
 
-// send basic key value.
-USB_HID_OperateSta_t bsp_usb_hid_keyboard_basic_report_start(void){
+// trigger sending of basic key value.
+static USB_HID_OperateSta_t bsp_usb_hid_keyboard_basic_report_start(void){
     if (USB_STA_BUSY == bsp_usb_hid_keyboard_basic_report_status_get()){
         return USB_HID_ERROR_BUSY;
     }
     USB_SendData(USB_EP_DIRECTION_IN(EP_KB_IN), (void*)&(KeybReport.report), sizeof(BSP_KEYB_REPORT_s), 0);
-    KeybReport.pending = U_TRUE;
+    KeybReport.sendBusy = U_TRUE;
     return USB_HID_ERROR_NONE;
 }
 
-void bsp_usb_hid_keyboard_basic_report_set_key_value(uint8_t key, uint8_t press){
-    
+static void bsp_usb_hid_kb_basic_report_general_key_reorder(uint8_t spot_index){
+    if (spot_index >= (KEY_TABLE_LEN-1)){
+        return;
+    }
+    for(uint8_t i = spot_index; i < (KEY_TABLE_LEN-1); i++){
+        if (KeybReport.report.key_table[i+1] != 0x00){
+            KeybReport.report.key_table[i] = KeybReport.report.key_table[i+1];
+            KeybReport.report.key_table[i+1] = 0x00;
+        }
+    }
+    return;
 }
 
+// set basic general key value.
+static uint8_t bsp_usb_hid_keyboard_basic_report_set_general_key_value(uint8_t key, uint8_t press){
+    uint8_t index;
+    if(press){
+        for(index = 0; index < KEY_TABLE_LEN; index++){
+            if(key == KeybReport.report.key_table[index]){
+                // already pressed
+                return U_FAIL;
+            }
+        }
+        for(index = 0; index < KEY_TABLE_LEN; index++){
+            if(0x00 == KeybReport.report.key_table[index]){
+                // find first empty spot, populate it
+                KeybReport.report.key_table[index] = key;
+                return U_SUCCESS; // effective change
+            }
+        }
+        // no empty spot, return
+        if(index == KEY_TABLE_LEN){
+            USB_DEBUG("ERROR: no empty spot, never come here!\n");
+            return U_FAIL;
+        }
+    } else {
+        for(index = 0; index < KEY_TABLE_LEN; index++){
+            if(key == KeybReport.report.key_table[index]){
+                // already pressed, clear it
+                KeybReport.report.key_table[index] = 0x00;
+                bsp_usb_hid_kb_basic_report_general_key_reorder(index);
+                return U_SUCCESS; // effective change
+
+            }
+        }
+        if(index == KEY_TABLE_LEN){
+            // USB_DEBUG("ERROR: not find the key.\n");
+            return U_FAIL; // No effective change
+        }
+    }
+    return U_FAIL;
+}
+
+// set basic modifier key value.
+static void bsp_usb_hid_keyboard_basic_report_set_modifier_key_value(BSP_KEYB_KEYB_MODIFIER_e modifier, uint8_t press){
+    if(press){
+        KeybReport.report.modifier |= modifier;
+    } else {
+        KeybReport.report.modifier &= ~modifier;
+    }
+}
+
+// get basic report key press count.
+static uint8_t bsp_usb_hid_kb_get_basic_key_cnt(void){
+    uint8_t index;
+    for(index = 0; index < KEY_TABLE_LEN; index++){
+        if(0x00 == KeybReport.report.key_table[index]){
+            return index;
+        }
+    }
+    return KEY_TABLE_LEN;
+}
+
+#if 0
+// ================================================================================================
 void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press)
 {
     uint32_t j;
-    if(U_FALSE == KeybReport.pending)
+    if(U_FALSE == KeybReport.sendBusy)
     {
         if(press)
         {
@@ -586,14 +670,14 @@ void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press)
         }
 
         USB_SendData(USB_EP_DIRECTION_IN(EP_KB_IN), (void*)&(KeybReport.report), sizeof(BSP_KEYB_REPORT_s), 0);
-        KeybReport.pending = U_TRUE;
+        KeybReport.sendBusy = U_TRUE;
     }
 }
 
 void bsp_usb_handle_hid_keyb_modifier_report(BSP_KEYB_KEYB_MODIFIER_e modifier, uint8_t press)
 {
     uint8_t last_press_state = ((KeybReport.report.modifier & modifier) != 0);
-    if((U_FALSE == KeybReport.pending)&&(last_press_state != press))
+    if((U_FALSE == KeybReport.sendBusy)&&(last_press_state != press))
     {
         if(press)
         {
@@ -605,18 +689,19 @@ void bsp_usb_handle_hid_keyb_modifier_report(BSP_KEYB_KEYB_MODIFIER_e modifier, 
         }
 
         USB_SendData(USB_EP_DIRECTION_IN(EP_KB_IN), (void*)&(KeybReport.report), sizeof(BSP_KEYB_REPORT_s), 0);
-        KeybReport.pending = U_TRUE;
+        KeybReport.sendBusy = U_TRUE;
     }
 }
+#endif
 
 uint8_t bsp_usb_get_hid_keyb_led_report(void)
 {
     return (KeybReport.led_state);
 }
 
-void bsp_usb_handle_hid_keyb_clear_report_buffer(void)
+static void bsp_usb_handle_hid_keyb_clear_report_buffer(void)
 {
-    memset(&(KeybReport.report),0x00, sizeof(BSP_KEYB_REPORT_s));
+    memset(&(KeybReport.report), 0x00, sizeof(BSP_KEYB_REPORT_s));
 }
 #endif // #if KB_DESCRIPTOR_EN
 
@@ -735,20 +820,241 @@ USB_HID_OperateSta_t bsp_usb_hid_keyboard_extend_report_start(void){
     return bsp_usb_hid_send_ext_key(KeybReport.ext_key_table, sizeof(KeybReport.ext_key_table));
 }
 
-void bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press){
+/**
+ * @brief set extend key value.
+ * @param key 
+ * @param press 
+ * @return uint8_t   0:No effective change,  1:effective change
+ */
+uint8_t bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t press){
     uint8_t index = ((key - HID_KEYB_A) / 8);
     uint8_t offset = ((key - HID_KEYB_A) % 8);
     if (press){
-        KeybReport.ext_key_table[index] |= (1<<offset);
+        if (!(KeybReport.ext_key_table[index] & (1<<offset))) {
+            KeybReport.ext_key_table[index] |= (1<<offset);
+            return U_SUCCESS; // The key released and press it successfully.
+        }
     } else {
-        KeybReport.ext_key_table[index] &= ~(1<<offset);
+        if (KeybReport.ext_key_table[index] & (1<<offset)){
+            KeybReport.ext_key_table[index] &= ~(1<<offset);
+            return U_SUCCESS; // The key pressed and release it successfully.
+        }
+    }
+    return U_FAIL; // No effective change
+}
+
+// ===================================================================================================
+#if USE_SOF_TRIGGER_KB_SEND_EN
+#else
+static bsp_usb_hid_kb_basic_delay_send_cb_t  kb_basic_delay_send_callback = NULL;
+static bsp_usb_hid_kb_extend_delay_send_cb_t kb_extend_delay_send_callback = NULL;
+
+static uint8_t bsp_usb_hid_kb_basic_report_delay_send_trigger(void){
+    if (kb_basic_delay_send_callback){
+        kb_basic_delay_send_callback();
+        return U_SUCCESS;
+    }
+    return U_FAIL;
+}
+static uint8_t bsp_usb_hid_kb_extend_report_delay_send_trigger(void){
+    if (kb_extend_delay_send_callback){
+        kb_extend_delay_send_callback();
+        return U_SUCCESS;
+    }
+    return U_FAIL;
+}
+
+void bsp_usb_hid_kb_basic_delay_send_callback_register(bsp_usb_hid_kb_basic_delay_send_cb_t cb){
+    kb_basic_delay_send_callback = cb;
+}
+void bsp_usb_hid_kb_extend_delay_send_callback_register(bsp_usb_hid_kb_extend_delay_send_cb_t cb){
+    kb_extend_delay_send_callback = cb;
+}
+#endif
+
+// check all key released.
+static uint8_t bsp_usb_hid_kb_all_key_release_check(void){
+    uint8_t index;
+    if(KeybReport.report.modifier != 0x00){
+        return U_FALSE;
+    }
+    for(index=0; index<KEY_TABLE_LEN; index++){
+        if(KeybReport.report.key_table[index] != 0x00){
+            return U_FALSE;
+        }
+    }
+    for(index=0; index<EXT_KEY_TABLE_LEN; index++){
+        if(KeybReport.ext_key_table[index] != 0x00){
+            return U_FALSE;
+        }
+    }
+    return U_TRUE;
+}
+
+static void bsp_usb_hid_kb_send_basic_key_trigger(void){
+#if USE_SOF_TRIGGER_KB_SEND_EN
+    KeybReport.basic_send_flag = U_TRUE;
+#else
+    // send start.
+    USB_HID_OperateSta_t status = bsp_usb_hid_keyboard_basic_report_start();
+    if (USB_HID_ERROR_NONE == status){
+    } else if (USB_HID_ERROR_BUSY == status){
+        if(bsp_usb_hid_kb_basic_report_delay_send_trigger() == U_FAIL){
+            USB_ERROR("ERROR: The usb is busy, and the basic delayed send function is not registered, so the key value is discarded!\n");
+        }
+    } else {
+        USB_ERROR("hid basic key send errror:%d\n", status);
+    }
+#endif
+}
+
+static void bsp_usb_hid_kb_send_extend_key_trigger(void){
+#if USE_SOF_TRIGGER_KB_SEND_EN
+    KeybReport.extend_send_flag = U_TRUE;
+#else
+    // send start.
+    USB_HID_OperateSta_t status = bsp_usb_hid_keyboard_extend_report_start();
+    if (USB_HID_ERROR_NONE == status){
+    } else if (USB_HID_ERROR_BUSY == status){
+        if(bsp_usb_hid_kb_extend_report_delay_send_trigger() == U_FAIL){
+            USB_ERROR("ERROR: The usb is busy, and the extend delayed send function is not registered, so the key value is discarded!\n");
+        }
+    } else {
+        USB_ERROR("hid extend key send errror:%d\n", status);
+    }
+#endif
+}
+
+// send key.
+void bsp_usb_hid_kb_key_report(BSP_HID_KB_Type_t type, uint8_t key, uint8_t press){
+
+    if (press){
+
+        /* press : send key. */
+        if (type == KEY_TYPE_MODIFIER){
+            // update basic modifier key.
+            bsp_usb_hid_keyboard_basic_report_set_modifier_key_value((BSP_KEYB_KEYB_MODIFIER_e)key, press);
+            // trigger basic send.
+            bsp_usb_hid_kb_send_basic_key_trigger();
+        } else {
+            if (KeybReport.extend_flag){
+                // find the extend key and update it's value.
+                bsp_usb_hid_keyboard_extend_report_set_key_value(key, press);
+                // trigger extend send.
+                bsp_usb_hid_kb_send_extend_key_trigger();
+            } else {
+                if(bsp_usb_hid_kb_get_basic_key_cnt() >= KEY_TABLE_LEN){
+                    // update extend flag.
+                    KeybReport.extend_flag = U_TRUE;
+                    // find the extend key and update it's value.
+                    bsp_usb_hid_keyboard_extend_report_set_key_value(key, press);
+                    // trigger extend send.
+                    bsp_usb_hid_kb_send_extend_key_trigger();
+                } else {
+                    // find the basic general key and update it's value.
+                    bsp_usb_hid_keyboard_basic_report_set_general_key_value(key, press);
+                    // trigger basic send.
+                    bsp_usb_hid_kb_send_basic_key_trigger();
+                }
+            }
+        }
+    } else {
+
+        /* release : send key. */
+        if (type == KEY_TYPE_MODIFIER){
+            // update basic modifier key.
+            bsp_usb_hid_keyboard_basic_report_set_modifier_key_value((BSP_KEYB_KEYB_MODIFIER_e)key, press);
+            // trigger basic send.
+            bsp_usb_hid_kb_send_basic_key_trigger();
+        } else {
+            // find the basic general key and update it's value.
+            if (bsp_usb_hid_keyboard_basic_report_set_general_key_value(key, press) == U_SUCCESS){
+                // trigger basic send.
+                bsp_usb_hid_kb_send_basic_key_trigger();
+            } else {
+                // find the extend key and update it's value.
+                if (bsp_usb_hid_keyboard_extend_report_set_key_value(key, press) == U_SUCCESS){
+                    // trigger extend send.
+                    bsp_usb_hid_kb_send_extend_key_trigger();
+                } else {
+                    // Invalid key value, discarded. Do nothing.
+                    USB_ERROR("ERRROR: Invalid key value, discarded!\n");
+                }
+            }
+        }
+        
+        // all key release check.
+        if(bsp_usb_hid_kb_all_key_release_check() == U_TRUE){
+            KeybReport.extend_flag = U_FALSE;
+            USB_ERROR("ALL RELEASE\n");
+        }
+
     }
 }
 
+#endif // #if KB_EXT_DESCRP_EN
+
+
+
 #endif
 
+static void usb_reset_keyboard_init(void){
+    memset(&KeybReport, 0, sizeof(KeybReport));
+    memset(&CtlReport, 0, sizeof(CtlReport));
+}
 
+#if USE_SOF_TRIGGER_KB_SEND_EN
+static void usb_sof_exist_check(void){
+    static uint32_t sof_cnt = 0;
+    // static uint32_t flag_1s = 0;
+    sof_cnt++;
+    if(sof_cnt % 1000 == 0){
+        // flag_1s++;
+        // if(flag_1s == 5){
+        //     bsp_usb_hid_kb_key_report(KEY_TYPE_MODIFIER, HID_KEYB_MODIFIER_LEFT_SHIFT, 1);
+        //     bsp_usb_hid_kb_key_report(KEY_TYPE_MODIFIER, HID_KEYB_MODIFIER_RIGHT_CTRL, 1);
+        // } else if(flag_1s == 6){
+        //     bsp_usb_hid_kb_key_report(KEY_TYPE_MODIFIER, HID_KEYB_MODIFIER_LEFT_SHIFT, 0);
+        //     bsp_usb_hid_kb_key_report(KEY_TYPE_MODIFIER, HID_KEYB_MODIFIER_RIGHT_CTRL, 0);
+        // }
+        platform_printf("sof.\n");
+    }
+}
 
+static void usb_sof_keyboard_send_check(void){
+
+    /* Check basic key sending. */
+    if (KeybReport.basic_send_flag){
+        // send basic start.
+        USB_HID_OperateSta_t status = bsp_usb_hid_keyboard_basic_report_start();
+        if (USB_HID_ERROR_NONE == status){
+            KeybReport.basic_send_flag = U_FALSE;
+        } else if (USB_HID_ERROR_BUSY == status){
+            // busy, wait next cycle.
+        } else {
+            USB_ERROR("hid basic key unknow errror:%d\n", status);
+            KeybReport.basic_send_flag = U_FALSE; //clear
+        }
+    }
+
+    /* Check extend key sending. */
+    if (KeybReport.extend_send_flag){
+        // send extend start.
+        USB_HID_OperateSta_t status = bsp_usb_hid_keyboard_extend_report_start();
+        if (USB_HID_ERROR_NONE == status){
+            KeybReport.extend_send_flag = U_FALSE;
+        } else if (USB_HID_ERROR_BUSY == status){
+            // busy, wait next cycle.
+        } else {
+            USB_ERROR("hid extend key unknow errror:%d\n", status);
+            KeybReport.basic_send_flag = U_FALSE; //clear
+        }
+    }
+
+    /* check sof run status. */
+    // usb_sof_exist_check();
+
+}
 #endif
 
 // ===================================================================================================
@@ -768,7 +1074,8 @@ void bsp_usb_init(void)
     SYSCTRL_USBPhyConfig(BSP_USB_PHY_ENABLE,BSP_USB_PHY_DP_PULL_UP);
 
     memset(&config, 0x00, sizeof(USB_INIT_CONFIG_T));
-    config.intmask = USBINTMASK_SUSP | USBINTMASK_RESUME;
+    config.intmask = USBINTMASK_SUSP | USBINTMASK_RESUME | USBINTMASK_SOF;
+    // config.intmask = USBINTMASK_SUSP | USBINTMASK_RESUME;
     config.handler = bsp_usb_event_handler;
     USB_InitConfig(&config);
 }
