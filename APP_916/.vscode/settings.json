@@ -10,6 +10,7 @@
         "bsp_usb.h": "c",
         "bsp_usb_hid_kb.h": "c",
         "btstack_util.h": "c",
-        "*.inc": "c"
+        "*.inc": "c",
+        "iap_userdef.h": "c"
     }
 }

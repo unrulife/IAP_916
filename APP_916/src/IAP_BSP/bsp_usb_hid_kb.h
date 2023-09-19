@@ -8,6 +8,7 @@
 #define KB_DESCRIPTOR_EN    (1)
 #define MO_DESCRIPTOR_EN    (0)
 #define CTL_DESCRIPTOR_EN   (1)
+#define KB_EXT_DESCRP_EN    (1)
 
 #ifdef __cplusplus
 extern "C" {
