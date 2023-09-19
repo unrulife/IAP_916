@@ -327,7 +327,9 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                         {
 #if KB_DESCRIPTOR_EN                                            
                                             // check the length, setup->wLength, for keyb, 8bit led state output is defined
-                                            KeybReport.led_state = setup->data[0];
+                                            if (setup->wLength == 1){
+                                                KeybReport.kb_led_state_recving = 1;
+                                            }
                                             // refer to BSP_KEYB_KEYB_LED_e
 #endif                                            
                                         }break;
@@ -457,6 +459,15 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                 case USB_CALLBACK_TYPE_RECEIVE_END:
                 {
                     USB_DEBUG("##USB RECV END: ep(%d)\n", event->data.ep);
+                    // Endpoint 0 received data.
+                    if (event->data.ep == 0){
+                        uint8_t *data = (uint8_t *)USB_GetEp0SetupData();
+                        if (KeybReport.kb_led_state_recving){
+                            KeybReport.kb_led_state_recving = 0;
+                            KeybReport.led_state = data[0];
+                        }
+                    }
+
 #if CTL_DESCRIPTOR_EN
                     if(event->data.ep == EP_CTL_OUT){
                         CtlReport.ready = U_TRUE;

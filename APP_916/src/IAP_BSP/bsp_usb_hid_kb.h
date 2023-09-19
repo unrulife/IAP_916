@@ -604,6 +604,7 @@ typedef struct
     uint8_t extend_send_flag;
 #endif
     uint8_t led_state;
+    uint8_t kb_led_state_recving;
     uint8_t sendBusy;
 }BSP_KEYB_DATA_s;
 #endif
