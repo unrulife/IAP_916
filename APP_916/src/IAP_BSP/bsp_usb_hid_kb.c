@@ -803,6 +803,7 @@ static USB_HID_OperateSta_t bsp_usb_hid_report_send(uint8_t reportID, uint8_t *d
 }
 
 USB_HID_OperateSta_t bsp_usb_hid_ctl_send(uint8_t *data, uint16_t len){
+    len = ConfigDescriptor.ep_ctl[EP_CTL_IDX_GET(EP_CTL_IN)].mps-1;
     return bsp_usb_hid_report_send(CTL_REPORT_ID, data, len);
 }
 
