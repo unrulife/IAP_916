@@ -1,5 +1,5 @@
-#ifndef __BSP_USB_HID_KB_H
-#define __BSP_USB_HID_KB_H
+#ifndef __BSP_USB_HID_ALL_KB_H
+#define __BSP_USB_HID_ALL_KB_H
 
 #include <stdint.h>
 #include "ingsoc.h"

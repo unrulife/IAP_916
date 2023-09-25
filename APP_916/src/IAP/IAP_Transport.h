@@ -2,7 +2,7 @@
 #define _IAP_TRANSPORT_H_
 
 #include <stdint.h>
-#include "bsp_usb_hid_kb.h"
+#include "bsp_usb_hid_all_kb.h"
 
 
 #define IAP_TRANSPORT_MAX_SEND_DATA_SIZE        (MAX_REPORT_SIZE)

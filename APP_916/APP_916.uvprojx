@@ -454,9 +454,9 @@
           <GroupName>IAP_BSP</GroupName>
           <Files>
             <File>
-              <FileName>bsp_usb_hid_kb.c</FileName>
+              <FileName>bsp_usb_hid_all_kb.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\src\IAP_BSP\bsp_usb_hid_kb.c</FilePath>
+              <FilePath>.\src\IAP_BSP\bsp_usb_hid_all_kb.c</FilePath>
             </File>
           </Files>
         </Group>

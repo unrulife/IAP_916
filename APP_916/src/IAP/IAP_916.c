@@ -7,7 +7,7 @@
 #include "rom_tools.h"
 #include "string.h"
 #include "IAP_UserDef.h"
-#include "bsp_usb_hid_kb.h"
+#include "bsp_usb_hid_all_kb.h"
 #include "crc16.h"
 #include "IAP_Transport.h"
 #include "IAP_Application.h"
