@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "ingsoc.h"
-#include "IAP_UserDef.h"
+//#include "IAP_UserDef.h"
 
 #define KB_DESCRIPTOR_EN    (1)
 #define MO_DESCRIPTOR_EN    (0)
@@ -412,7 +412,7 @@ typedef struct __attribute__((packed))
     .ep = USB_EP_DIRECTION_OUT(EP_CTL_OUT), \
     .attributes = USB_EP_TYPE_INTERRUPT, \
     .mps = EP_CTL_MPS_BYTES, \
-    .interval = 0xA \
+    .interval = 0x32 \
 }
 
 #define MAX_REPORT_SIZE     63   // WITHOUT REPORT ID.

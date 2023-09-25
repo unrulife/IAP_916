@@ -6,13 +6,13 @@
 #include "btstack_util.h"
 
 #if 0
-#define USB_DEBUG(...)	platform_printf(__VA_ARGS__)
+#define USB_DEBUG(...)    platform_printf(__VA_ARGS__)
 #else
 #define USB_DEBUG(...)      
 #endif
 
-#if 1
-#define USB_ERROR(...)	platform_printf(__VA_ARGS__)
+#if 0
+#define USB_ERROR(...)    platform_printf(__VA_ARGS__)
 #else
 #define USB_ERROR(...)      
 #endif
@@ -171,7 +171,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                             if (ConfigDescriptor.config.configIndex == cfg_idx){
 #if KB_DESCRIPTOR_EN                        
-								status |= USB_ConfigureEp(&(ConfigDescriptor.ep_kb[0]));
+                                status |= USB_ConfigureEp(&(ConfigDescriptor.ep_kb[0]));
 #endif
 #if MO_DESCRIPTOR_EN                                
                                 status |= USB_ConfigureEp(&(ConfigDescriptor.ep_mo[0]));
@@ -290,7 +290,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                     USB_DEBUG("####USB REQUEST_REPORT_INPUT.\n");
                                     switch(setup->wIndex)
                                     {
-#if KB_DESCRIPTOR_EN										
+#if KB_DESCRIPTOR_EN                                        
                                         case KB_INTERFACE_IDX:
                                         {
                                             USB_SendData(0, (void*)&KeybReport, sizeof(BSP_KEYB_REPORT_s), 0);
@@ -302,9 +302,9 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                             USB_SendData(0, (void*)&MouseReport, sizeof(BSP_MOUSE_REPORT_s), 0);
                                         }break;
 #endif                                        
-										default:
-											USB_DEBUG("#####USB wIndex:%d, TODO\n", setup->wIndex);
-											break;
+                                        default:
+                                            USB_DEBUG("#####USB wIndex:%d, TODO\n", setup->wIndex);
+                                            break;
                                     }
                                 }break;
                                 default:
@@ -399,7 +399,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                                             status |= USB_SendData(0, (void*)&ReportMouseDescriptor, size, 0);
                                             MouseReport.pending = U_FALSE;
-											USB_DEBUG("#####USB Report Mouse Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
+                                            USB_DEBUG("#####USB Report Mouse Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
                                         }break;
 #endif                                        
 #if CTL_DESCRIPTOR_EN
@@ -410,7 +410,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                                             status |= USB_SendData(0, (void*)&ReportCtlDescriptor, size, 0);
                                             CtlReport.preReady = U_TRUE;
-											USB_DEBUG("#####USB Report Ctl Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
+                                            USB_DEBUG("#####USB Report Ctl Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
                                         }break;
 #endif
                                         default:
@@ -491,9 +491,9 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                 }break;
                 case USB_CALLBACK_TYPE_TRANSMIT_END:
                 {
-					USB_DEBUG("##USB send OK: ep(%d)\n", event->data.ep);
+                    USB_DEBUG("##USB send OK: ep(%d)\n", event->data.ep);
 #if CTL_DESCRIPTOR_EN
-					/* Enter receiving status after setup complete. */
+                    /* Enter receiving status after setup complete. */
                     if(event->data.ep == 0 && CtlReport.preReady == U_TRUE){
                         CtlReport.preReady = U_FALSE;
 
@@ -504,8 +504,8 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         platform_printf("===> USB OK <===\n");
                     }
 #endif                    
-					
-					/* If send ok, Clear busy status, and notify user. */
+                    
+                    /* If send ok, Clear busy status, and notify user. */
                     switch(event->data.ep)
                     {
 #if KB_DESCRIPTOR_EN                        
@@ -521,7 +521,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         }break;
 #endif                        
 #if CTL_DESCRIPTOR_EN
-						case EP_CTL_IN:
+                        case EP_CTL_IN:
                         {
                             CtlReport.sendBusy = U_FALSE;
                             bsp_usb_hid_ctl_push_send_complete_to_user();
@@ -998,7 +998,7 @@ void bsp_usb_hid_kb_key_report(BSP_HID_KB_Type_t type, uint8_t key, uint8_t pres
         // all key release check.
         if(bsp_usb_hid_kb_all_key_release_check() == U_TRUE){
             KeybReport.extend_flag = U_FALSE;
-            USB_ERROR("ALL RELEASE\n");
+            USB_DEBUG("ALL RELEASE\n");
         }
 
     }
