@@ -1,3 +1,8 @@
 # APP_916
 
-Add a description of your project here.
+1. USB Upgrade: boot code.
+2. SDK8.4.4
+3. CHIP_ID: ING91683C_TB
+4. ITEM:  INGCHIPS_IAP_TEST_APP
+5. USB   [VID]: 0x36B0；[PID]: 0x0102;
+6. REPORT_ID: 0x2F

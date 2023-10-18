@@ -12,6 +12,9 @@
 #include "IAP_Transport.h"
 #include "IAP_Application.h"
 
+// If the version information in the flash is different from that defined in the program, the system automatic switches to the BOOT. 
+#define FLASH_AND_CODE_VER_DIFF_GO_TO_BOOT_EN
+
 
 // IAP INFO
 const char iap_chip[]   = USER_DEF_CHIP_ID;         // max = 15bytes.
@@ -167,9 +170,11 @@ void IAP_Init(void){
 
     IAP_PrintInfo();
     if(IAP_CheckFlashVersionInfo()){
+#ifdef  FLASH_AND_CODE_VER_DIFF_GO_TO_BOOT_EN
         platform_printf("go to boot\n");
         bsp_usb_disable();
         AppJumpToBoot();
+#endif
     }
 
     APP_TaskCreate();
