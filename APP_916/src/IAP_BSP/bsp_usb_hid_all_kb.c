@@ -11,7 +11,7 @@
 #define USB_DEBUG(...)      
 #endif
 
-#if 0
+#if 1
 #define USB_ERROR(...)    platform_printf(__VA_ARGS__)
 #else
 #define USB_ERROR(...)      
@@ -25,9 +25,6 @@ const BSP_USB_DESC_STRUCTURE_T ConfigDescriptor __attribute__ ((aligned (4))) =
     USB_CONFIG_DESCRIPTOR
 #if KB_DESCRIPTOR_EN
     ,USB_INTERFACE_DESCRIPTOR_KB,  USB_HID_DESCRIPTOR_KB,  {USB_EP_IN_DESCRIPTOR_KB}
-#endif
-#if MO_DESCRIPTOR_EN
-    ,USB_INTERFACE_DESCRIPTOR_MO,  USB_HID_DESCRIPTOR_MO,  {USB_EP_IN_DESCRIPTOR_MO}
 #endif
 #if CTL_DESCRIPTOR_EN
     ,USB_INTERFACE_DESCRIPTOR_CTL, USB_HID_DESCRIPTOR_CTL, {USB_EP_IN_DESCRIPTOR_CTL, USB_EP_OUT_DESCRIPTOR_CTL}
@@ -44,11 +41,6 @@ BSP_USB_VAR_s UsbVar;
 #if KB_DESCRIPTOR_EN
 const uint8_t ReportKeybDescriptor[] __attribute__ ((aligned (4))) = USB_HID_KB_REPORT_DESCRIPTOR;
 BSP_KEYB_DATA_s KeybReport __attribute__ ((aligned (4))) = {.sendBusy = U_FALSE};
-#endif
-
-#if MO_DESCRIPTOR_EN
-const uint8_t ReportMouseDescriptor[] __attribute__ ((aligned (4))) = USB_HID_MOUSE_REPORT_DESCRIPTOR;
-BSP_MOUSE_DATA_s MouseReport __attribute__ ((aligned (4))) = {.pending = U_TRUE};
 #endif
 
 #if CTL_DESCRIPTOR_EN
@@ -69,9 +61,7 @@ static void bsp_usb_hid_ctl_push_send_complete_to_user(void);
 static USB_ERROR_TYPE_E bsp_usp_hid_ctl_rx_data_trigger(uint8_t printFLAG);
 static USB_ERROR_TYPE_E bsp_usp_hid_ctl_tx_data_trigger(uint8_t reportID, uint8_t *data, uint16_t len);
 static void usb_reset_keyboard_init(void);
-#if USE_SOF_TRIGGER_KB_SEND_EN
 static void usb_sof_keyboard_send_check(void);
-#endif
 #endif
 
 // =============================================================================================================
@@ -94,9 +84,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
         }break;
         case USB_EVENT_DEVICE_SOF:
         {
-#if USE_SOF_TRIGGER_KB_SEND_EN
             usb_sof_keyboard_send_check();
-#endif
             // USB_DEBUG("#USB SOF\n");
             // handle sof, need enable interrupt in config.intmask
         }break;
@@ -172,10 +160,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                             if (ConfigDescriptor.config.configIndex == cfg_idx){
 #if KB_DESCRIPTOR_EN                        
                                 status |= USB_ConfigureEp(&(ConfigDescriptor.ep_kb[0]));
-#endif
-#if MO_DESCRIPTOR_EN                                
-                                status |= USB_ConfigureEp(&(ConfigDescriptor.ep_mo[0]));
-#endif                                
+#endif                
 #if CTL_DESCRIPTOR_EN
                                 status |= USB_ConfigureEp(&(ConfigDescriptor.ep_ctl[0]));
                                 status |= USB_ConfigureEp(&(ConfigDescriptor.ep_ctl[1]));
@@ -243,9 +228,10 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                                 break;
                                 default:
                                 {
+                                    if ( USB_REQUEST_DEVICE_DESCRIPTOR_DEVICE_QUALIFIER != (setup->wValue >> 8)){ //We don't need to care about the quality of the device.
+                                        USB_ERROR("####USB Get descriptor unsupport: %d, TODO!!!\n", (setup->wValue >> 8));
+                                    }
                                     status = USB_ERROR_REQUEST_NOT_SUPPORT;
-
-                                    USB_DEBUG("####USB Get descriptor unsupport: %d!!!\n", (setup->wValue >> 8));
                                 }break;
                             }
                         }
@@ -267,8 +253,8 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         break;
                         default:
                         {
+                            USB_ERROR("###USB dst device req unsupport: %d , TODO!!!\n", setup->bRequest);
                             status = USB_ERROR_REQUEST_NOT_SUPPORT;
-                            USB_DEBUG("###USB dst device req unsupport !!!\n");
                         }break;
                     }
                 }
@@ -276,153 +262,162 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                 case USB_REQUEST_DESTINATION_INTERFACE:
                 {
-                    USB_DEBUG("##USB dst interface req.\n");
-                    switch(setup->bRequest)
+                    USB_DEBUG("=========> ##USB dst interface req: %d, %d\n", setup->bmRequestType.Type, setup->bRequest);
+                    switch(setup->bmRequestType.Type)
                     {
-                        //This request is mandatory and must be supported by all devices.
-                        case USB_REQUEST_HID_CLASS_REQUEST_GET_REPORT:
+                        case USB_REQUEST_TYPE_STANDARD:
                         {
-                            USB_DEBUG("###USB get report.\n");
-                            switch(((setup->wValue)>>8)&0xFF)
+                            switch(setup->bRequest)
                             {
-                                case USB_REQUEST_HID_CLASS_REQUEST_REPORT_INPUT:
+                                case USB_REQUEST_DEVICE_GET_DESCRIPTOR:
                                 {
-                                    USB_DEBUG("####USB REQUEST_REPORT_INPUT.\n");
+                                    USB_DEBUG("###USB get interface descriptor: HID_CLASS(0x%x), wIndex(%d)\n",(((setup->wValue)>>8)&0xFF), setup->wIndex);
+                                    switch(((setup->wValue)>>8)&0xFF)
+                                    {
+                                        case USB_REQUEST_HID_CLASS_DESCRIPTOR_REPORT:
+                                        {
+                                            USB_DEBUG("####USB get report descriptor.\n");
+                                            switch(setup->wIndex)
+                                            {
+        #if KB_DESCRIPTOR_EN                                           
+                                                case KB_INTERFACE_IDX:
+                                                {
+                                                    size = sizeof(ReportKeybDescriptor);
+                                                    size = (setup->wLength < size) ? (setup->wLength) : size;
+
+                                                    status |= USB_SendData(0, (void*)&ReportKeybDescriptor, size, 0);
+                                                    KeybReport.sendBusy = U_FALSE;
+
+                                                    USB_DEBUG("#####USB Report Keyb Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
+                                                }break;
+        #endif
+        #if CTL_DESCRIPTOR_EN
+                                                case CTL_INTERFACE_IDX:
+                                                {
+                                                    size = sizeof(ReportCtlDescriptor);
+                                                    size = (setup->wLength < size) ? (setup->wLength) : size;
+
+                                                    status |= USB_SendData(0, (void*)&ReportCtlDescriptor, size, 0);
+                                                    CtlReport.preReady = U_TRUE;
+                                                    USB_DEBUG("#####USB Report Ctl Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
+                                                }break;
+        #endif
+                                                default:
+                                                {
+                                                    USB_ERROR("###USB unsupport report descriptor:%d, TODO\n", setup->wIndex);
+                                                    status = USB_ERROR_REQUEST_NOT_SUPPORT;
+                                                }break;
+                                            }
+                                        }break;
+                                        default:
+                                        {
+                                            USB_ERROR("###USB unsupport interface descriptor:0x%02X!!!, TODO\n", ((setup->wValue)>>8)&0xFF);
+                                            status = USB_ERROR_REQUEST_NOT_SUPPORT;
+                                        }break;
+                                    }
+                                }
+                                break;
+                                default:
+                                {
+                                    USB_ERROR("###USB dst interface req type standard unsupport:%d !!!, TODO\n", setup->bRequest);
+                                    status = USB_ERROR_REQUEST_NOT_SUPPORT;
+                                }break;
+                            }
+                        }
+                        break;
+                        case USB_REQUEST_TYPE_CLASS:
+                        {
+                            switch(setup->bRequest)
+                            {
+                                //This request is mandatory and must be supported by all devices.
+                                case USB_REQUEST_HID_CLASS_REQUEST_GET_REPORT:
+                                {
+                                    USB_DEBUG("###USB get report.\n");
+                                    switch(((setup->wValue)>>8)&0xFF)
+                                    {
+                                        case USB_REQUEST_HID_CLASS_REQUEST_REPORT_INPUT:
+                                        {
+                                            USB_DEBUG("####USB REQUEST_REPORT_INPUT.\n");
+                                            switch(setup->wIndex)
+                                            {
+        #if KB_DESCRIPTOR_EN                                        
+                                                case KB_INTERFACE_IDX:
+                                                {
+                                                    USB_SendData(0, (void*)&KeybReport, sizeof(BSP_KEYB_REPORT_s), 0);
+                                                }break;
+        #endif
+                                                default:
+                                                    USB_ERROR("#####USB wIndex:%d, TODO\n", setup->wIndex);
+                                                    status = USB_ERROR_REQUEST_NOT_SUPPORT;
+                                                    break;
+                                            }
+                                        }break;
+                                        default:
+                                        {
+                                            USB_ERROR("####USB REQUEST_REPORT_INPUT unsupport:%d, TODO\n", (((setup->wValue)>>8)&0xFF));
+                                            status = USB_ERROR_REQUEST_NOT_SUPPORT;
+                                        }break;
+                                    }
+                                }break;
+                                case USB_REQUEST_HID_CLASS_REQUEST_SET_REPORT:
+                                {
+                                    USB_DEBUG("###USB report set: req_type(0x%02X), wIndex(%d) \n", (((setup->wValue)>>8)&0xFF), setup->wIndex);
+                                    switch(((setup->wValue)>>8)&0xFF)
+                                    {
+                                        case USB_REQUEST_HID_CLASS_REQUEST_REPORT_OUTPUT:
+                                        {
+                                            switch(setup->wIndex)
+                                            {
+                                                case KB_INTERFACE_IDX:
+                                                {
+        #if KB_DESCRIPTOR_EN                                            
+                                                    // check the length, setup->wLength, for keyb, 8bit led state output is defined
+                                                    if (setup->wLength == 1){
+                                                        KeybReport.kb_led_state_recving = 1;
+                                                    }
+                                                    // refer to BSP_KEYB_KEYB_LED_e
+        #endif                                            
+                                                }break;
+
+                                                default:
+                                                    USB_ERROR("#####USB CLASS unsupported index:%d, TODO\n", setup->wIndex);
+                                                    status = USB_ERROR_REQUEST_NOT_SUPPORT;
+                                                    break;
+                                            }
+                                        }break;
+                                        default:
+                                        {
+                                            USB_ERROR("###USB CLASS: req_type(0x%02X), TODO\n", ((setup->wValue)>>8)&0xFF);
+                                            status = USB_ERROR_REQUEST_NOT_SUPPORT;
+                                        }break;
+                                    }
+                                }break;
+                                case USB_REQUEST_HID_CLASS_REQUEST_SET_IDLE:
+                                {
+                                    USB_DEBUG("###USB set idle: interface index(%d)\n", setup->wIndex);
                                     switch(setup->wIndex)
                                     {
-#if KB_DESCRIPTOR_EN                                        
+        #if KB_DESCRIPTOR_EN                                
                                         case KB_INTERFACE_IDX:
                                         {
-                                            USB_SendData(0, (void*)&KeybReport, sizeof(BSP_KEYB_REPORT_s), 0);
+                                            // KeybReport.sendBusy = U_TRUE; // set idle.
                                         }break;
-#endif
-#if MO_DESCRIPTOR_EN
-                                        case MO_INTERFACE_IDX:
+        #endif    
+        #if CTL_DESCRIPTOR_EN                                
+                                        case CTL_INTERFACE_IDX:
                                         {
-                                            USB_SendData(0, (void*)&MouseReport, sizeof(BSP_MOUSE_REPORT_s), 0);
+                                            // CtlReport.ready = U_FALSE; // set idle.
                                         }break;
-#endif                                        
+        #endif                          
                                         default:
-                                            USB_DEBUG("#####USB wIndex:%d, TODO\n", setup->wIndex);
+                                            USB_ERROR("#####USB unsupported index:%d, TODO\n", setup->wIndex);
+                                            status = USB_ERROR_REQUEST_NOT_SUPPORT;
                                             break;
                                     }
                                 }break;
                                 default:
                                 {
-                                    USB_DEBUG("####USB REQUEST_REPORT_INPUT unsupport:%d\n", (((setup->wValue)>>8)&0xFF));
-                                    status = USB_ERROR_REQUEST_NOT_SUPPORT;
-                                }break;
-                            }
-                        }break;
-                        case USB_REQUEST_HID_CLASS_REQUEST_SET_REPORT:
-                        {
-                            USB_DEBUG("###USB report set: req_type(0x%02X), wIndex(%d) \n", (((setup->wValue)>>8)&0xFF), setup->wIndex);
-                            switch(((setup->wValue)>>8)&0xFF)
-                            {
-                                case USB_REQUEST_HID_CLASS_REQUEST_REPORT_OUTPUT:
-                                {
-                                    switch(setup->wIndex)
-                                    {
-                                        case KB_INTERFACE_IDX:
-                                        {
-#if KB_DESCRIPTOR_EN                                            
-                                            // check the length, setup->wLength, for keyb, 8bit led state output is defined
-                                            if (setup->wLength == 1){
-                                                KeybReport.kb_led_state_recving = 1;
-                                            }
-                                            // refer to BSP_KEYB_KEYB_LED_e
-#endif                                            
-                                        }break;
-                                    }
-                                }break;
-                                default:
-                                {
-                                    status = USB_ERROR_REQUEST_NOT_SUPPORT;
-                                }break;
-                            }
-                        }break;
-                        case USB_REQUEST_HID_CLASS_REQUEST_SET_IDLE:
-                        {
-                            USB_DEBUG("###USB set idle: interface index(%d)\n", setup->wIndex);
-                            switch(setup->wIndex)
-                            {
-#if KB_DESCRIPTOR_EN                                
-                                case KB_INTERFACE_IDX:
-                                {
-                                    // KeybReport.sendBusy = U_TRUE; // set idle.
-                                }break;
-#endif
-#if MO_DESCRIPTOR_EN                                
-                                case MO_INTERFACE_IDX:
-                                {
-                                    // MouseReport.pending = U_TRUE; // set idle.
-                                }break;
-#endif                          
-#if CTL_DESCRIPTOR_EN                                
-                                case CTL_INTERFACE_IDX:
-                                {
-                                    // CtlReport.ready = U_FALSE; // set idle.
-                                }break;
-#endif                          
-                                default:
-                                    USB_DEBUG("#####USB unsupported index:%d, TODO\n", setup->wIndex);
-                                    break;
-                            }
-                        }break;
-                        case USB_REQUEST_DEVICE_GET_DESCRIPTOR:
-                        {
-                            USB_DEBUG("###USB get interface descriptor: HID_CLASS(0x%x), wIndex(%d)\n",(((setup->wValue)>>8)&0xFF), setup->wIndex);
-                            switch(((setup->wValue)>>8)&0xFF)
-                            {
-                                case USB_REQUEST_HID_CLASS_DESCRIPTOR_REPORT:
-                                {
-                                    USB_DEBUG("####USB get report descriptor.\n");
-                                    switch(setup->wIndex)
-                                    {
-#if KB_DESCRIPTOR_EN                                           
-                                        case KB_INTERFACE_IDX:
-                                        {
-                                            size = sizeof(ReportKeybDescriptor);
-                                            size = (setup->wLength < size) ? (setup->wLength) : size;
-
-                                            status |= USB_SendData(0, (void*)&ReportKeybDescriptor, size, 0);
-                                            KeybReport.sendBusy = U_FALSE;
-
-                                            USB_DEBUG("#####USB Report Keyb Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
-                                        }break;
-#endif
-#if MO_DESCRIPTOR_EN                                           
-                                        case MO_INTERFACE_IDX:
-                                        {
-                                            size = sizeof(ReportMouseDescriptor);
-                                            size = (setup->wLength < size) ? (setup->wLength) : size;
-
-                                            status |= USB_SendData(0, (void*)&ReportMouseDescriptor, size, 0);
-                                            MouseReport.pending = U_FALSE;
-                                            USB_DEBUG("#####USB Report Mouse Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
-                                        }break;
-#endif                                        
-#if CTL_DESCRIPTOR_EN
-                                        case CTL_INTERFACE_IDX:
-                                        {
-                                            size = sizeof(ReportCtlDescriptor);
-                                            size = (setup->wLength < size) ? (setup->wLength) : size;
-
-                                            status |= USB_SendData(0, (void*)&ReportCtlDescriptor, size, 0);
-                                            CtlReport.preReady = U_TRUE;
-                                            USB_DEBUG("#####USB Report Ctl Descriptor: get_size:%d, send_size:%d\n", setup->wLength, size);
-                                        }break;
-#endif
-                                        default:
-                                        {
-                                            USB_DEBUG("###USB unsupport report descriptor:%d, TODO\n", setup->wIndex);
-                                            status = USB_ERROR_REQUEST_NOT_SUPPORT;
-                                        }break;
-                                    }
-                                }break;
-                                default:
-                                {
-                                    USB_DEBUG("###USB unsupport interface descriptor:0x%02X!!!, TODO\n", ((setup->wValue)>>8)&0xFF);
+                                    USB_ERROR("###USB dst interface req type class unsupport:%d !!!, TODO\n", setup->bRequest);
                                     status = USB_ERROR_REQUEST_NOT_SUPPORT;
                                 }break;
                             }
@@ -430,15 +425,16 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         break;
                         default:
                         {
-                            USB_DEBUG("###USB dst interface req unsupport !!!, TODO\n");
+                            USB_ERROR("###USB dst interface req type unsupport: %d !!!, TODO\n", setup->bmRequestType.Type);
                             status = USB_ERROR_REQUEST_NOT_SUPPORT;
                         }break;
                     }
                 }
                 break;
+                
                 default:
                 {
-                    USB_DEBUG("###USB Recipient unsupport !!!, TODO\n");
+                    USB_ERROR("###USB Recipient unsupport: %d !!!, TODO\n", setup->bmRequestType.Recipient);
                     status = USB_ERROR_REQUEST_NOT_SUPPORT;
                 }break;
             }
@@ -447,7 +443,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
             // if status equals to USB_ERROR_NONE: it is successfully executed.
             if((USB_ERROR_NONE != status) && (USB_ERROR_REQUEST_NOT_SUPPORT != status))
             {
-                USB_DEBUG("USB event exec error %x (0x%x 0x%x)\n", status, *(uint32_t*)setup,*((uint32_t*)setup+1));
+                USB_ERROR("USB event exec error %x (0x%x 0x%x)\n", status, *(uint32_t*)setup,*((uint32_t*)setup+1));
             }
         }break;
 
@@ -513,13 +509,7 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
                         {
                             KeybReport.sendBusy = U_FALSE;
                         }break;
-#endif
-#if MO_DESCRIPTOR_EN                        
-                        case EP_MO_IN:
-                        {
-                            MouseReport.pending = U_FALSE;
-                        }break;
-#endif                        
+#endif                  
 #if CTL_DESCRIPTOR_EN
                         case EP_CTL_IN:
                         {
@@ -531,12 +521,14 @@ static uint32_t bsp_usb_event_handler(USB_EVNET_HANDLER_T *event)
 
                 }break;
                 default:
-                    USB_DEBUG("##USB unsupport type:%d, TODO\n", event->data.type);
+                    USB_ERROR("##USB unsupport type:%d, TODO\n", event->data.type);
+                    status = USB_ERROR_REQUEST_NOT_SUPPORT;
                     break;
             }
         }break;
         default:
-            USB_DEBUG("#USB unsupport id:%d, TODO\n", event->id);
+            USB_ERROR("#USB unsupport id:%d, TODO\n", event->id);
+            status = USB_ERROR_REQUEST_NOT_SUPPORT;
             break;
     }
 
@@ -637,74 +629,6 @@ static uint8_t bsp_usb_hid_kb_get_basic_key_cnt(void){
     return KEY_TABLE_LEN;
 }
 
-#if 0
-// ================================================================================================
-void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press)
-{
-    uint32_t j;
-    if(U_FALSE == KeybReport.sendBusy)
-    {
-        if(press)
-        {
-            for(j = 0; j < KEY_TABLE_LEN; j++)
-            {
-                if(key == KeybReport.report.key_table[j])
-                {
-                    // already pressed
-                    return;
-                }
-            }
-            for(j = 0; j < KEY_TABLE_LEN; j++)
-            {
-                if(0 == KeybReport.report.key_table[j])
-                {
-                    // find first empty spot, populate it
-                    KeybReport.report.key_table[j] = key;
-                    break;
-                }
-            }
-            // no empty spot, return
-            if(j == KEY_TABLE_LEN){return;}
-        }
-        else
-        {
-            for(j = 0; j < KEY_TABLE_LEN; j++)
-            {
-                if(key == KeybReport.report.key_table[j])
-                {
-                    // already pressed, clear it
-                    KeybReport.report.key_table[j] = 0x00;
-                    break;
-                }
-            }
-            if(j == KEY_TABLE_LEN){return;}
-        }
-
-        USB_SendData(USB_EP_DIRECTION_IN(EP_KB_IN), (void*)&(KeybReport.report), sizeof(BSP_KEYB_REPORT_s), 0);
-        KeybReport.sendBusy = U_TRUE;
-    }
-}
-
-void bsp_usb_handle_hid_keyb_modifier_report(BSP_KEYB_KEYB_MODIFIER_e modifier, uint8_t press)
-{
-    uint8_t last_press_state = ((KeybReport.report.modifier & modifier) != 0);
-    if((U_FALSE == KeybReport.sendBusy)&&(last_press_state != press))
-    {
-        if(press)
-        {
-            KeybReport.report.modifier |= modifier;
-        }
-        else
-        {
-            KeybReport.report.modifier &= ~modifier;
-        }
-
-        USB_SendData(USB_EP_DIRECTION_IN(EP_KB_IN), (void*)&(KeybReport.report), sizeof(BSP_KEYB_REPORT_s), 0);
-        KeybReport.sendBusy = U_TRUE;
-    }
-}
-#endif
-
 uint8_t bsp_usb_get_hid_keyb_led_report(void)
 {
     return (KeybReport.led_state);
@@ -715,27 +639,6 @@ static void bsp_usb_handle_hid_keyb_clear_report_buffer(void)
     memset(&(KeybReport.report), 0x00, sizeof(BSP_KEYB_REPORT_s));
 }
 #endif // #if KB_DESCRIPTOR_EN
-
-// ===================================================================================================
-#if MO_DESCRIPTOR_EN
-void bsp_usb_handle_hid_mouse_report(int8_t x, int8_t y, uint8_t btn)
-{
-    if((U_FALSE == MouseReport.pending)&&((0!=x)||(0!=y)||(btn!=MouseReport.report.button)))
-    {
-        MouseReport.report.pos_x = x;
-        MouseReport.report.pos_y = y;
-        MouseReport.report.button = btn;
-
-        USB_SendData(USB_EP_DIRECTION_IN(EP_MO_IN), (void*)&MouseReport, sizeof(BSP_MOUSE_REPORT_s), 0);
-        MouseReport.pending = U_TRUE;
-    }
-}
-
-void bsp_usb_handle_hid_mouse_clear_report_buffer(void)
-{
-    memset(&(MouseReport.report),0x00, sizeof(BSP_MOUSE_REPORT_s));
-}
-#endif // #if MO_DESCRIPTOR_EN
 
 // ===================================================================================================
 #if CTL_DESCRIPTOR_EN
@@ -856,34 +759,6 @@ uint8_t bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uint8_t pr
 }
 
 // ===================================================================================================
-#if USE_SOF_TRIGGER_KB_SEND_EN
-#else
-static bsp_usb_hid_kb_basic_delay_send_cb_t  kb_basic_delay_send_callback = NULL;
-static bsp_usb_hid_kb_extend_delay_send_cb_t kb_extend_delay_send_callback = NULL;
-
-static uint8_t bsp_usb_hid_kb_basic_report_delay_send_trigger(void){
-    if (kb_basic_delay_send_callback){
-        kb_basic_delay_send_callback();
-        return U_SUCCESS;
-    }
-    return U_FAIL;
-}
-static uint8_t bsp_usb_hid_kb_extend_report_delay_send_trigger(void){
-    if (kb_extend_delay_send_callback){
-        kb_extend_delay_send_callback();
-        return U_SUCCESS;
-    }
-    return U_FAIL;
-}
-
-void bsp_usb_hid_kb_basic_delay_send_callback_register(bsp_usb_hid_kb_basic_delay_send_cb_t cb){
-    kb_basic_delay_send_callback = cb;
-}
-void bsp_usb_hid_kb_extend_delay_send_callback_register(bsp_usb_hid_kb_extend_delay_send_cb_t cb){
-    kb_extend_delay_send_callback = cb;
-}
-#endif
-
 // check all key released.
 static uint8_t bsp_usb_hid_kb_all_key_release_check(void){
     uint8_t index;
@@ -904,41 +779,19 @@ static uint8_t bsp_usb_hid_kb_all_key_release_check(void){
 }
 
 static void bsp_usb_hid_kb_send_basic_key_trigger(void){
-#if USE_SOF_TRIGGER_KB_SEND_EN
     KeybReport.basic_send_flag = U_TRUE;
-#else
-    // send start.
-    USB_HID_OperateSta_t status = bsp_usb_hid_keyboard_basic_report_start();
-    if (USB_HID_ERROR_NONE == status){
-    } else if (USB_HID_ERROR_BUSY == status){
-        if(bsp_usb_hid_kb_basic_report_delay_send_trigger() == U_FAIL){
-            USB_ERROR("ERROR: The usb is busy, and the basic delayed send function is not registered, so the key value is discarded!\n");
-        }
-    } else {
-        USB_ERROR("hid basic key send errror:%d\n", status);
-    }
-#endif
 }
 
 static void bsp_usb_hid_kb_send_extend_key_trigger(void){
-#if USE_SOF_TRIGGER_KB_SEND_EN
     KeybReport.extend_send_flag = U_TRUE;
-#else
-    // send start.
-    USB_HID_OperateSta_t status = bsp_usb_hid_keyboard_extend_report_start();
-    if (USB_HID_ERROR_NONE == status){
-    } else if (USB_HID_ERROR_BUSY == status){
-        if(bsp_usb_hid_kb_extend_report_delay_send_trigger() == U_FAIL){
-            USB_ERROR("ERROR: The usb is busy, and the extend delayed send function is not registered, so the key value is discarded!\n");
-        }
-    } else {
-        USB_ERROR("hid extend key send errror:%d\n", status);
-    }
-#endif
 }
 
 // send key.
 void bsp_usb_hid_kb_key_report(BSP_HID_KB_Type_t type, uint8_t key, uint8_t press){
+    
+    if (type != KEY_TYPE_MODIFIER && type != KEY_TYPE_GENERAL){
+        return ;
+    }
 
     if (press){
 
@@ -1004,6 +857,25 @@ void bsp_usb_hid_kb_key_report(BSP_HID_KB_Type_t type, uint8_t key, uint8_t pres
     }
 }
 
+void bsp_usb_hid_kb_basic_key_report(uint8_t modif, uint8_t * key_tab, uint8_t key_num){
+    if (key_num > KEY_TABLE_LEN){
+        return;
+    }
+
+    KeybReport.report.modifier = modif;
+    memcpy(KeybReport.report.key_table, key_tab, key_num);
+    bsp_usb_hid_kb_send_basic_key_trigger();
+}
+
+void bsp_usb_hid_kb_extend_key_report(uint8_t * key_tab, uint8_t key_num){
+    if (key_num > EXT_KEY_TABLE_LEN){
+        return;
+    }
+
+    memcpy(KeybReport.ext_key_table, key_tab, key_num);
+    bsp_usb_hid_kb_send_extend_key_trigger();
+}
+
 #endif // #if KB_EXT_DESCRP_EN
 
 
@@ -1015,7 +887,6 @@ static void usb_reset_keyboard_init(void){
     memset(&CtlReport, 0, sizeof(CtlReport));
 }
 
-#if USE_SOF_TRIGGER_KB_SEND_EN
 static void usb_sof_exist_check(void){
     static uint32_t sof_cnt = 0;
     // static uint32_t flag_1s = 0;
@@ -1067,7 +938,6 @@ static void usb_sof_keyboard_send_check(void){
     // usb_sof_exist_check();
 
 }
-#endif
 
 // ===================================================================================================
 // ===================================================================================================

@@ -6,7 +6,6 @@
 //#include "IAP_UserDef.h"
 
 #define KB_DESCRIPTOR_EN    (1)
-#define MO_DESCRIPTOR_EN    (0)
 #define CTL_DESCRIPTOR_EN   (1)
 #define KB_EXT_DESCRP_EN    (1)
 
@@ -130,19 +129,13 @@ typedef enum
 #define KB_INTERFACES_NUM   (0)
 #endif
 
-#if MO_DESCRIPTOR_EN
-#define MO_INTERFACES_NUM   (1)
-#else
-#define MO_INTERFACES_NUM   (0)
-#endif
-
 #if CTL_DESCRIPTOR_EN
 #define CTL_INTERFACES_NUM  (1)
 #else
 #define CTL_INTERFACES_NUM  (0)
 #endif
 
-#define bNUM_INTERFACES (KB_INTERFACES_NUM + MO_INTERFACES_NUM + CTL_INTERFACES_NUM)
+#define bNUM_INTERFACES (KB_INTERFACES_NUM + CTL_INTERFACES_NUM)
 
 #if KB_DESCRIPTOR_EN
 #define KB_INTERFACE_IDX    (0x00)
@@ -150,14 +143,6 @@ typedef enum
 #define EP_KB_IN            (1)/* EP1 is in */
 #define EP_KB_IDX_GET(x)    (x - EP_KB_IN) // ep_kb[x]
 #define EP_KB_MPS_BYTES     (8)
-#endif
-
-#if MO_DESCRIPTOR_EN
-#define MO_INTERFACE_IDX    (0x01)
-#define bNUM_EP_MO          (1)
-#define EP_MO_IN            (2)/* EP2 is in */
-#define EP_MO_IDX_GET(x)    (x - EP_MO_IN) // ep_mo[x]
-#define EP_MO_MPS_BYTES     (8)
 #endif
 
 #if CTL_DESCRIPTOR_EN
@@ -183,13 +168,6 @@ typedef struct __attribute__((packed))
     USB_INTERFACE_DESCRIPTOR_REAL_T interface_kb;
     BSP_USB_HID_DESCRIPTOR_T hid_kb;
     USB_EP_DESCRIPTOR_REAL_T ep_kb[bNUM_EP_KB];
-#endif
-
-#if MO_DESCRIPTOR_EN
-    /* mouse */
-    USB_INTERFACE_DESCRIPTOR_REAL_T interface_mo;
-    BSP_USB_HID_DESCRIPTOR_T hid_mo;
-    USB_EP_DESCRIPTOR_REAL_T ep_mo[bNUM_EP_MO];
 #endif
 
 #if CTL_DESCRIPTOR_EN
@@ -291,78 +269,6 @@ typedef struct __attribute__((packed))
         0xc0                /* END_COLLECTION                                                                         */    \
 }
 #endif // #if KB_DESCRIPTOR_EN
-
-// =======================================================================================
-#if MO_DESCRIPTOR_EN
-#define USB_INTERFACE_DESCRIPTOR_MO \
-{ \
-    .size = sizeof(USB_INTERFACE_DESCRIPTOR_REAL_T), \
-    .type = 4, \
-    .interfaceIndex = MO_INTERFACE_IDX, \
-    .alternateSetting = 0x00, \
-    .nbEp = bNUM_EP_MO,    \
-    .usbClass = 0x03, \
-    /* 0: no subclass, 1: boot interface */ \
-    .usbSubClass = 0x00, \
-    /* 0: none, 1: keyboard, 2: mouse */ \
-    .usbProto = 0x00, \
-    .iDescription = 0x00 \
-}
-
-#define USB_HID_DESCRIPTOR_MO \
-{ \
-    .size = sizeof(BSP_USB_HID_DESCRIPTOR_T), \
-     /* 0x21: hid descriptor type */ \
-    .type = 0x21, \
-    .bcd = 0x101, \
-    .countryCode = 0x00, \
-    .nbDescriptor = 0x01, \
-    /* 0x22: report descriptor type */ \
-    .classType0 = 0x22, \
-    .classlength0 = USB_HID_MOUSE_REPORT_DESCRIPTOR_SIZE \
-}
-
-
-#define USB_EP_IN_DESCRIPTOR_MO \
-{ \
-    .size = sizeof(USB_EP_DESCRIPTOR_REAL_T), \
-    .type = 5, \
-    .ep = USB_EP_DIRECTION_IN(EP_MO_IN), \
-    .attributes = USB_EP_TYPE_INTERRUPT, \
-    .mps = EP_MO_MPS_BYTES, \
-    .interval = 0xA \
-}
-
-#define USB_HID_MOUSE_REPORT_DESCRIPTOR_SIZE (50)
-#define USB_HID_MOUSE_REPORT_DESCRIPTOR { \
-        0x05, 0x01, /* USAGE_PAGE (Generic Desktop)             */     \
-        0x09, 0x02, /* USAGE (Mouse)                                            */     \
-        0xa1, 0x01, /* COLLECTION (Application)                     */     \
-        0x09, 0x01, /*     USAGE (Pointer)                                    */     \
-        0xa1, 0x00, /*     COLLECTION (Physical)                        */     \
-        0x05, 0x09, /*         USAGE_PAGE (Button)                        */     \
-        0x19, 0x01, /*         USAGE_MINIMUM (Button 1)             */     \
-        0x29, 0x03, /*         USAGE_MAXIMUM (Button 3)             */     \
-        0x15, 0x00, /*         LOGICAL_MINIMUM (0)                        */     \
-        0x25, 0x01, /*         LOGICAL_MAXIMUM (1)                        */     \
-        0x95, 0x03, /*         REPORT_COUNT (3)                             */     \
-        0x75, 0x01, /*         REPORT_SIZE (1)                                */     \
-        0x81, 0x02, /*         INPUT (Data,Var,Abs)                     */     \
-        0x95, 0x01, /*         REPORT_COUNT (1)                             */     \
-        0x75, 0x05, /*         REPORT_SIZE (5)                                */     \
-        0x81, 0x03, /*         INPUT (Cnst,Var,Abs)                     */     \
-        0x05, 0x01, /*         USAGE_PAGE (Generic Desktop)     */     \
-        0x09, 0x30, /*         USAGE (X)                                            */     \
-        0x09, 0x31, /*         USAGE (Y)                                            */     \
-        0x15, 0x81, /*         LOGICAL_MINIMUM (-127)                 */     \
-        0x25, 0x7f, /*         LOGICAL_MAXIMUM (127)                    */     \
-        0x75, 0x08, /*         REPORT_SIZE (8)                                */     \
-        0x95, 0x02, /*         REPORT_COUNT (2)                             */     \
-        0x81, 0x06, /*         INPUT (Data,Var,Rel)                     */     \
-        0xc0,             /*     END_COLLECTION                                     */     \
-        0xc0                /* END_COLLECTION                                         */     \
-}
-#endif // #if MO_DESCRIPTOR_EN
 
 // =======================================================================================
 #if CTL_DESCRIPTOR_EN
@@ -583,6 +489,7 @@ typedef enum
 typedef enum {
     KEY_TYPE_GENERAL,
     KEY_TYPE_MODIFIER,
+    KEY_TYPE_VENDOR_DEFINE,
 } BSP_HID_KB_Type_t;
 
 #define KEY_TABLE_LEN (6)
@@ -611,27 +518,6 @@ typedef struct
 #endif
 
 // =======================================================================================
-#if MO_DESCRIPTOR_EN
-#define USB_HID_MO_BUTTON_POS     0
-#define USB_HID_MO_X_POS         1
-#define USB_HID_MO_Y_POS         2
-#define USB_HID_MO_MAX_POS         3
-
-typedef struct __attribute__((packed))
-{
-    uint8_t button;/* 1 ~ 3 */
-    int8_t pos_x;/* -127 ~ 127 */
-    int8_t pos_y;/* -127 ~ 127 */
-}BSP_MOUSE_REPORT_s;
-
-typedef struct
-{
-    BSP_MOUSE_REPORT_s report;
-    uint8_t pending;
-}BSP_MOUSE_DATA_s;
-#endif
-
-// =======================================================================================
 #if CTL_DESCRIPTOR_EN
 typedef struct
 {
@@ -653,40 +539,12 @@ typedef void (* bsp_usb_hid_ctl_send_complete_cb_t)(void);
 // =======================================================================================
 #if KB_DESCRIPTOR_EN
 /**
- * @brief interface API. send keyboard key report
- *
- * @param[in] key: value comes from BSP_KEYB_KEYB_USAGE_ID_e
- * @param[in] press: 1: pressed, 0: released
- * @param[out] null. 
- */
-// extern void bsp_usb_handle_hid_keyb_key_report(uint8_t key, uint8_t press);
-/**
- * @brief interface API. send keyboard modifier report
- *
- * @param[in] modifier: value comes from BSP_KEYB_KEYB_MODIFIER_e
- * @param[in] press: 1: pressed, 0: released
- * @param[out] null. 
- */
-// extern void bsp_usb_handle_hid_keyb_modifier_report(BSP_KEYB_KEYB_MODIFIER_e modifier, uint8_t press);
-/**
  * @brief interface API. get keyboard led state
  *
  * @param[in] null
  * @param[out] 8bit value, refer to BSP_KEYB_KEYB_LED_e. 
  */
 extern uint8_t bsp_usb_get_hid_keyb_led_report(void);
-#endif
-// =======================================================================================
-#if MO_DESCRIPTOR_EN
-/**
- * @brief interface API. send mouse report
- *
- * @param[in] x: 8bit int x axis value, relative,
- * @param[in] y: 8bit int y axis value, relative,
- * @param[in] btn: 8bit value, button 1 to 3,
- * @param[out] null. 
- */
-extern void bsp_usb_handle_hid_mouse_report(int8_t x, int8_t y, uint8_t btn);
 #endif
 // =======================================================================================
 #if CTL_DESCRIPTOR_EN
@@ -714,16 +572,44 @@ extern uint8_t bsp_usb_hid_keyboard_extend_report_set_key_value(uint8_t key, uin
  */
 extern USB_HID_OperateSta_t bsp_usb_hid_keyboard_extend_report_start(void);
 
-#define USE_SOF_TRIGGER_KB_SEND_EN      (1)
-
-#if USE_SOF_TRIGGER_KB_SEND_EN
-#else
-typedef void (* bsp_usb_hid_kb_basic_delay_send_cb_t)(void);
-typedef void (* bsp_usb_hid_kb_extend_delay_send_cb_t)(void);
-void bsp_usb_hid_kb_basic_delay_send_callback_register(bsp_usb_hid_kb_basic_delay_send_cb_t cb);
-extern void bsp_usb_hid_kb_extend_delay_send_callback_register(bsp_usb_hid_kb_extend_delay_send_cb_t cb);
-#endif
+/**
+ * @brief On the keyboard side, you can use this interface to send full-key no-dash values to PC. 
+ * @note You must call this function in the same level of interrupt as the usb SOF interrupt to ensure thread-safety issues. 
+ *       If you cannot ensure the above, then make sure that the function is not called more than once within 1ms (SOF sending interval), 
+ *       that is, in order to ensure that the last pack has already been sent before the next packet is requested. 
+ * 
+ * @param type For the key Type, refer to structure @struct BSP_HID_KB_Type_t
+ * @param key HID standard key value, depending on the key type to select different key values:
+ *                              type = KEY_TYPE_GENERAL refer to @struct BSP_KEYB_KEYB_USAGE_ID_e
+ *                              type = KEY_TYPE_MODIFIER refer to @struct BSP_KEYB_KEYB_MODIFIER_e
+ *                              type = KEY_TYPE_VENDOR_DEFINE not support by this function.
+ * @param press 1:pressed, 0:released.
+ */
 extern void bsp_usb_hid_kb_key_report(BSP_HID_KB_Type_t type, uint8_t key, uint8_t press);
+
+/**
+ * @brief On the dongle side, you can use this function to send standard key values to the PC. 
+ * @note You must call this function in the same level of interrupt as the usb SOF interrupt to ensure thread-safety issues. 
+ *       If you cannot ensure the above, then make sure that the function is not called more than once within 1ms (SOF sending interval), 
+ *       that is, in order to ensure that the last pack has already been sent before the next packet is requested. 
+ * 
+ * @param modif modifier: each bit represents a fixed key value, refer to BSP_KEYB_KEYB_MODIFIER_e to get the meaning of each bit.
+ * @param key_tab basic key value, each byte represents a key value, refer to BSP_KEYB_KEYB_USAGE_ID_e to get ascii code for each key value.
+ * @param key_num Number of key_tab, max value = KEY_TABLE_LEN.
+ */
+extern void bsp_usb_hid_kb_basic_key_report(uint8_t modif, uint8_t * key_tab, uint8_t key_num);
+
+/**
+ * @brief On the dongle side, you can use this function to send extend key values to the PC. 
+ * @note You must call this function in the same level of interrupt as the usb SOF interrupt to ensure thread-safety issues. 
+ *       If you cannot ensure the above, then make sure that the function is not called more than once within 1ms (SOF sending interval), 
+ *       that is, in order to ensure that the last pack has already been sent before the next packet is requested. 
+ * 
+ * @param key_tab extend key value, each bit represents a fixed key value, refer to bsp_usb_hid_keyboard_extend_report_set_key_value to understand it.
+ * @param key_num Number of key_num, max value = EXT_KEY_TABLE_LEN
+ */
+extern void bsp_usb_hid_kb_extend_key_report(uint8_t * key_tab, uint8_t key_num);
+
 #endif
 
 #endif
